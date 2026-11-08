@@ -195,6 +195,7 @@ internal/webui              本地面板（embed 静态资源）
 - [docs/API_NOTES.md](docs/API_NOTES.md) —— 雨课堂接口真实结构
 - [docs/CHANNELS.md](docs/CHANNELS.md) —— 各推送通道的配置方法
 - [docs/EVOLUTION.md](docs/EVOLUTION.md) —— 迭代记录与踩坑归档
+- [docs/HANDOFF.md](docs/HANDOFF.md) —— 交接说明与当前待办
 
 ## 开发
 
