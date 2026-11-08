@@ -3,7 +3,7 @@ package ykt
 import (
 	"testing"
 
-	"github.com/infinite-galaxy/rainclass-reminder/internal/domain"
+	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/domain"
 )
 
 // 本文件锁定"任务 → 网页端路由"的**完整分类规则**。

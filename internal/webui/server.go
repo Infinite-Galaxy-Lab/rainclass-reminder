@@ -14,12 +14,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/infinite-galaxy/rainclass-reminder/internal/auth"
-	"github.com/infinite-galaxy/rainclass-reminder/internal/config"
-	"github.com/infinite-galaxy/rainclass-reminder/internal/notify"
-	"github.com/infinite-galaxy/rainclass-reminder/internal/qrutil"
-	"github.com/infinite-galaxy/rainclass-reminder/internal/store"
-	"github.com/infinite-galaxy/rainclass-reminder/internal/ykt"
+	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/auth"
+	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/config"
+	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/notify"
+	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/qrutil"
+	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/store"
+	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/ykt"
 )
 
 //go:embed assets/index.html assets/app.js assets/style.css

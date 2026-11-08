@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/infinite-galaxy/rainclass-reminder/internal/domain"
+	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/domain"
 )
 
 // 本文件锁定"任务 → 网页端直达链接"的生成规则。

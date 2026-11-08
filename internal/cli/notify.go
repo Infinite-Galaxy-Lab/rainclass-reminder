@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/infinite-galaxy/rainclass-reminder/internal/config"
-	"github.com/infinite-galaxy/rainclass-reminder/internal/domain"
-	"github.com/infinite-galaxy/rainclass-reminder/internal/notify"
-	"github.com/infinite-galaxy/rainclass-reminder/internal/ykt"
+	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/config"
+	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/domain"
+	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/notify"
+	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/ykt"
 )
 
 // cmdNotify 测试通知通道。

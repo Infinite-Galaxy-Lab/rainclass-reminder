@@ -10,8 +10,8 @@ VERSION="${VERSION:-$(cat VERSION 2>/dev/null || echo dev)}"
 BIN="rainclass-reminder"
 # 版本号注入 cli（version 子命令与面板显示）和 notify（webhook 的 User-Agent）。
 LDFLAGS="-s -w \
-  -X github.com/infinite-galaxy/rainclass-reminder/internal/cli.Version=${VERSION} \
-  -X github.com/infinite-galaxy/rainclass-reminder/internal/notify.Version=${VERSION}"
+  -X github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/cli.Version=${VERSION} \
+  -X github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/notify.Version=${VERSION}"
 OUT="dist"
 
 mkdir -p "$OUT"

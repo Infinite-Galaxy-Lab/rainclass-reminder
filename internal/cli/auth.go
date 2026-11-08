@@ -8,9 +8,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/infinite-galaxy/rainclass-reminder/internal/auth"
-	"github.com/infinite-galaxy/rainclass-reminder/internal/config"
-	"github.com/infinite-galaxy/rainclass-reminder/internal/qrutil"
+	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/auth"
+	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/config"
+	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/qrutil"
 )
 
 // cmdAuth 管理登录态：import / login / status / clear。

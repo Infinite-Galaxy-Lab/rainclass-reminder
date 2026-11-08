@@ -1,7 +1,7 @@
 package notify
 
 import (
-	"github.com/infinite-galaxy/rainclass-reminder/internal/netguard"
+	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/netguard"
 )
 
 // defaultWebhookGuard 返回通用 webhook 的 SSRF 策略。

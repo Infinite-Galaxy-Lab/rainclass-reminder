@@ -15,7 +15,7 @@ COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux go build \
       -trimpath \
-      -ldflags "-s -w -X github.com/infinite-galaxy/rainclass-reminder/internal/cli.Version=$(cat VERSION 2>/dev/null || echo dev)" \
+      -ldflags "-s -w -X github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/cli.Version=$(cat VERSION 2>/dev/null || echo dev)" \
       -o /out/rainclass-reminder ./cmd/rainclass-reminder
 
 

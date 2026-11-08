@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/infinite-galaxy/rainclass-reminder/internal/domain"
+	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/domain"
 )
 
 // TestCoursewareRealPayload 用真实响应跑一遍整条链路，定位

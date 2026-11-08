@@ -8,8 +8,8 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/infinite-galaxy/rainclass-reminder/internal/config"
-	"github.com/infinite-galaxy/rainclass-reminder/internal/domain"
+	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/config"
+	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/domain"
 )
 
 // cmdTasks 拉取并打印当前任务，用于人工核对数据准确性。

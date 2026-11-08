@@ -1,4 +1,4 @@
-module github.com/infinite-galaxy/rainclass-reminder
+module github.com/Infinite-Galaxy-Lab/rainclass-reminder
 
 go 1.23
 

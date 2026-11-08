@@ -4,7 +4,7 @@ package main
 import (
 	"os"
 
-	"github.com/infinite-galaxy/rainclass-reminder/internal/cli"
+	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/cli"
 )
 
 func main() {

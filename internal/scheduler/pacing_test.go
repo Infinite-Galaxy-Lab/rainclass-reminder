@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/infinite-galaxy/rainclass-reminder/internal/domain"
+	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/domain"
 )
 
 // TestNearestDeadline 验证"最近未来截止"的挑选逻辑。

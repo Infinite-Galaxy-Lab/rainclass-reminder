@@ -12,9 +12,9 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/infinite-galaxy/rainclass-reminder/internal/domain"
-	"github.com/infinite-galaxy/rainclass-reminder/internal/notify"
-	"github.com/infinite-galaxy/rainclass-reminder/internal/store"
+	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/domain"
+	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/notify"
+	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/store"
 )
 
 // TaskSource 是任务数据源（由 ykt.Client 实现，测试可用假实现）。

@@ -1,6 +1,6 @@
 [Unit]
 Description=RainClass Reminder - 长江雨课堂截止提醒助手
-Documentation=https://github.com/infinite-galaxy/rainclass-reminder
+Documentation=https://github.com/Infinite-Galaxy-Lab/rainclass-reminder
 After=network-online.target
 Wants=network-online.target
 

@@ -6,7 +6,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/infinite-galaxy/rainclass-reminder/internal/domain"
+	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/domain"
 )
 
 // PushedRecord 记录一条已发送/已处理的提醒。

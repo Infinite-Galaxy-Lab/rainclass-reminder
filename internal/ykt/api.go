@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/infinite-galaxy/rainclass-reminder/internal/domain"
+	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/domain"
 )
 
 // 本文件实现各只读接口的调用，返回已归一化的数据。

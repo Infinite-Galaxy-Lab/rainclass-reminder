@@ -71,5 +71,5 @@ jobs:
           CGO_ENABLED: "0"
         run: |
           go build -trimpath \
-            -ldflags "-s -w -X github.com/infinite-galaxy/rainclass-reminder/internal/cli.Version=${GITHUB_SHA::7}" \
+            -ldflags "-s -w -X github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/cli.Version=${GITHUB_SHA::7}" \
             -o /tmp/out/rainclass-reminder ./cmd/rainclass-reminder

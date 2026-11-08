@@ -9,9 +9,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/infinite-galaxy/rainclass-reminder/internal/config"
-	"github.com/infinite-galaxy/rainclass-reminder/internal/scheduler"
-	"github.com/infinite-galaxy/rainclass-reminder/internal/webui"
+	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/config"
+	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/scheduler"
+	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/webui"
 )
 
 // cmdRun 启动常驻服务。

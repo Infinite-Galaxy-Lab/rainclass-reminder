@@ -46,7 +46,7 @@ RainClass Reminder 补上这一环：一个常驻后台的只读进程，按你�
 ### 1. 编译
 
 ```bash
-git clone https://github.com/infinite-galaxy/rainclass-reminder.git
+git clone https://github.com/Infinite-Galaxy-Lab/rainclass-reminder.git
 cd rainclass-reminder
 
 go build -o rainclass-reminder ./cmd/rainclass-reminder   # 仅本机
