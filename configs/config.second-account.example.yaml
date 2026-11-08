@@ -1,0 +1,109 @@
+# 第二个账号的配置示例（多实例部署方式）
+#
+# 用法：
+#   1. 复制本文件到你的运行目录，例如 %AppData%\ykt-reminder-2\config.yaml
+#   2. 把 data_dir 指向独立目录，避免与账号一互相覆盖
+#   3. 把 web_ui.listen 改成不同端口
+#   4. 用 `ykt-reminder --config <本文件> run` 启动第二个实例
+#
+# 为什么用多实例而不是多账号：
+#   单进程多账号需要给 pushes.key、tasks.id、kv.key 全部加账号维度
+#   并做数据迁移（详见 docs/EVOLUTION.md §六），改动面覆盖 8 个包、
+#   40-60 处代码。多实例靠"每实例独立 data_dir + 独立端口"即可完全隔离，
+#   代价只是多一个进程（实测每个约 24MB）。
+#
+# 注意：不要把真实凭据写进本文件，用环境变量注入：
+#   YKT_FEISHU_WEBHOOK / YKT_FEISHU_SECRET / YKT_EMAIL_PASSWORD
+
+data_dir: ""   # 必须改成独立目录，例如 C:/Users/you/AppData/Roaming/ykt-reminder-2/data
+
+poll:
+  interval: 10m
+  jitter: 60s
+  active_start_hour: 7
+  active_end_hour: 23
+  idle_interval: 60m
+  request_timeout: 20s
+  concurrency: 4
+  min_request_gap: 300ms
+  relaxed_interval: 30m
+  relax_hours: 6
+  interval_tiers:
+    - within: 2h
+      interval: 5m
+    - within: 12h
+      interval: 10m
+    - within: 48h
+      interval: 20m
+    - within: 0
+      interval: 30m
+
+ykt:
+  base_url: https://changjiang.yuketang.cn
+  identity: 2
+  detail_lookahead_days: 7
+  chapter_ttl: 30m
+  detail_ttl: 60m
+  detail_ttl_tiers:
+    - within: 2h
+      ttl: 15m
+    - within: 24h
+      ttl: 60m
+    - within: 0
+      ttl: 8h
+
+notify:
+  enabled:
+    - desktop
+    - feishu
+    - email
+
+  desktop:
+    app_name: "雨课堂提醒（账号二）"
+
+  feishu:
+    webhook: ""    # 环境变量 YKT_FEISHU_WEBHOOK
+    secret: ""     # 环境变量 YKT_FEISHU_SECRET
+    at_user_id: ""
+
+  # SMTP 邮件通道：适合留档，也是飞书被禁用时的替代。
+  # 国内常见邮箱的 SMTP：
+  #   QQ 邮箱   smtp.qq.com:465      （需在设置里开启 SMTP 并获取"授权码"）
+  #   163      smtp.163.com:465     （同上，授权码而非登录密码）
+  #   Gmail    smtp.gmail.com:465   （需应用专用密码）
+  #   校园邮箱  smtp.<学校域名>:465  （多数高校开放，端口可能是 587）
+  email:
+    host: ""          # 例如 smtp.qq.com
+    port: 465         # 465 隐式 TLS；587 走 STARTTLS
+    username: ""      # 完整邮箱地址，例如 you@qq.com
+    password: ""      # 环境变量 YKT_EMAIL_PASSWORD（授权码）
+    from: ""          # 留空则等于 username
+    to: []            # 收件人，例如 ["you@qq.com"]
+    subject_prefix: "【雨课堂提醒】"
+    insecure_skip_verify: false
+
+  webhook:
+    name: "webhook"
+    url: ""      # 环境变量 YKT_WEBHOOK_URL
+    format: "json"
+
+policy:
+  milestones_before_minutes: [1440, 360, 60, 15]
+  class_lead_minutes: 10
+  notify_expired: true
+  quiet_start_hour: 23
+  quiet_end_hour: 7
+  quiet_defer_hour: 7
+  quiet_defer_minute: 30
+  urgent_minutes: 15
+  coalesce: true
+  max_per_cycle: 8
+
+web_ui:
+  enabled: true
+  listen: 127.0.0.1:8788   # 必须与账号一不同（账号一默认 8787）
+  token: ""
+
+log:
+  level: info
+  file: ""   # 建议填独立文件，例如 C:/Users/you/AppData/Roaming/ykt-reminder-2/ykt.log

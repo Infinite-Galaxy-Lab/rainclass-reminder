@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>雨课堂 · 截止提醒</title>
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+<div class="app">
+
+  <aside class="rail" aria-label="概览">
+    <div class="rail-brand">
+      <span class="mark" aria-hidden="true"></span>
+      <span class="rail-title">雨课堂</span>
+    </div>
+
+    <nav class="rail-nav" aria-label="视图切换">
+      <button class="rail-item is-active" data-view="tasks" type="button">
+        <span class="rail-ico" aria-hidden="true">◱</span>
+        <span>任务</span>
+        <span class="rail-num num" id="rail-task-count">—</span>
+      </button>
+      <button class="rail-item" data-view="history" type="button">
+        <span class="rail-ico" aria-hidden="true">↻</span>
+        <span>推送记录</span>
+      </button>
+    </nav>
+
+    <div class="rail-foot">
+      <div class="health" id="health">
+        <span class="health-dot" aria-hidden="true"></span>
+        <span class="health-text" id="health-text">检查中</span>
+      </div>
+      <div class="rail-meta">
+        <div id="last-fetch">—</div>
+        <div id="session" class="rail-session"></div>
+        <div id="channels">—</div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <header class="head">
+      <div class="head-l">
+        <h1 id="view-title">任务</h1>
+        <p class="head-sub" id="view-sub">按截止时间排序，临期优先</p>
+      </div>
+      <div class="head-r">
+        <div class="seg" role="group" aria-label="显示范围">
+          <button class="seg-btn is-active" data-scope="due" type="button">待办</button>
+          <button class="seg-btn" data-scope="open" type="button">未完成</button>
+          <button class="seg-btn" data-scope="all" type="button">全部</button>
+        </div>
+        <button class="btn btn-ghost" id="btn-refresh" type="button">
+          <span class="btn-ico" aria-hidden="true">↻</span>
+          <span>刷新</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="alert" id="auth-alert" role="alert" hidden>
+      <div class="alert-body">
+        <strong>登录已失效</strong>
+        <span>提醒已暂停，重新登录后自动恢复。</span>
+      </div>
+      <button class="btn btn-solid" id="btn-login" type="button">微信扫码登录</button>
+    </div>
+
+    <!-- ============ 任务视图 ============ -->
+    <section class="view" id="view-tasks" aria-label="任务列表">
+
+      <div class="filters">
+        <div class="chips" id="type-chips" role="group" aria-label="按类型筛选"></div>
+        <div class="filter-row">
+          <div class="field field-search">
+            <span class="field-ico" aria-hidden="true">⌕</span>
+            <input type="search" id="filter-search" placeholder="搜索任务或课程" aria-label="搜索任务">
+            <button class="field-clear" id="search-clear" type="button" aria-label="清除搜索" hidden>×</button>
+          </div>
+          <div class="field field-select">
+            <select id="filter-course" aria-label="按课程筛选"></select>
+          </div>
+        </div>
+      </div>
+
+      <div class="list-head">
+        <span class="list-note num" id="task-count-note"></span>
+      </div>
+
+      <div id="tasks" class="list">
+        <div class="state state-loading">加载中…</div>
+      </div>
+    </section>
+
+    <!-- ============ 推送记录视图 ============ -->
+    <section class="view" id="view-history" aria-label="推送记录" hidden>
+      <div id="history" class="list">
+        <div class="state state-loading">加载中…</div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- 扫码登录：模态，避免打断任务列表浏览 -->
+<div class="modal" id="qr-modal" hidden>
+  <div class="modal-backdrop" data-close="1"></div>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="qr-title">
+    <div class="modal-head">
+      <h2 id="qr-title">微信扫码登录</h2>
+      <button class="icon-btn" id="btn-qr-close" type="button" aria-label="关闭">×</button>
+    </div>
+    <div class="qr-body">
+      <div class="qr-frame">
+        <img id="qr-img" alt="微信登录二维码">
+        <div class="qr-veil" id="qr-veil" hidden><span id="qr-veil-text"></span></div>
+      </div>
+      <p class="qr-status" id="qr-status">正在申请二维码…</p>
+      <p class="qr-hint">二维码约 5 分钟内有效。扫码后无需操作，面板会自动恢复。</p>
+    </div>
+  </div>
+</div>
+
+<footer class="foot">
+  <span>只读客户端 · 不提交任何作业或考试答案</span>
+  <span class="num" id="version"></span>
+</footer>
+
+<script src="/assets/app.js"></script>
+</body>
+</html>

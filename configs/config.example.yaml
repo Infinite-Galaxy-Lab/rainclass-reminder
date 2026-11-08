@@ -1,0 +1,172 @@
+# 长江雨课堂 · 截止提醒助手 配置示例
+#
+# 复制到平台默认位置后修改：
+#   Windows: %AppData%\ykt-reminder\config.yaml
+#   Linux/macOS: ~/.config/ykt-reminder/config.yaml
+#
+# 也可以用 --config 指定任意路径。
+# 所有字段都有默认值，最小配置只需要填 notify.feishu.webhook。
+
+# 运行数据目录（cookie、SQLite 状态库）。留空使用平台默认值。
+# data_dir: D:/ykt-data
+
+poll:
+  # 正常轮询间隔。不要低于 1 分钟（会被限流）。
+  interval: 10m
+  # 每轮叠加的随机抖动上限，避免整点集中请求。
+  jitter: 60s
+  # 活跃时段（本地时间，左闭右开）：此时段内按 interval 轮询。
+  active_start_hour: 7
+  active_end_hour: 23
+  # 非活跃时段的轮询间隔。
+  idle_interval: 60m
+  # 单个 HTTP 请求超时。
+  request_timeout: 20s
+  # 课程并发抓取数（1-16）。
+  concurrency: 4
+  # 任意两个请求之间的最小间隔（全局限速），默认 300ms。
+  # 并发数只决定"最多几个在飞"，这个才决定真实请求速率。
+  # 调大可进一步降低风控概率，但一轮抓取会更慢。
+  min_request_gap: 300ms
+  # 近期无到期任务时的放宽间隔（默认 30m）。
+  relaxed_interval: 30m
+  # 最近截止时间超过这么多小时，就切到 relaxed_interval。
+  relax_hours: 6
+  # 按"距最近截止还剩多久"分级调频 —— 最有效的降频手段。
+  # 距截止 40 小时时，每 20 分钟扫和每 3 分钟扫，提醒效果没区别，
+  # 但请求量差 6 倍。within: 0 是兜底档（匹配所有更远的情况）。
+  interval_tiers:
+    - within: 2h       # 2 小时内到期：5 分钟一扫
+      interval: 5m
+    - within: 12h      # 半天内：10 分钟
+      interval: 10m
+    - within: 48h      # 两天内：20 分钟
+      interval: 20m
+    - within: 0        # 更远：30 分钟
+      interval: 30m
+
+ykt:
+  # 站点根地址。荷塘/黄河等其它实例可改这里。
+  base_url: https://changjiang.yuketang.cn
+  # courses/list 的 identity 参数，学生为 2。
+  identity: 2
+  # 只对这么多天内到期的叶子拉详情，控制请求量。
+  detail_lookahead_days: 7
+  # 章节树缓存时长。
+  chapter_ttl: 30m
+  # 叶子详情缓存基准值（分级表缺失时使用）。
+  detail_ttl: 60m
+  # 详情缓存按紧迫程度分档：越接近截止刷得越勤，远期几乎不刷。
+  detail_ttl_tiers:
+    - within: 2h
+      ttl: 15m
+    - within: 24h
+      ttl: 60m
+    - within: 0
+      ttl: 8h
+  # 自定义 UA（一般不用改）。
+  # user_agent: "Mozilla/5.0 ..."
+
+notify:
+  # 启用的通道，按顺序尝试；任一成功即视为送达。
+  #
+  # 内置通道：
+  #   feishu  飞书群机器人          （需要 webhook）
+  #   desktop 桌面系统通知          （无需任何凭据，仅本机可见）
+  #   webhook 通用 HTTP 推送        （Bark/Server酱/PushPlus/企微/钉钉/TG...）
+  #
+  # 推荐组合：desktop + 任一远程通道（本地即时 + 离开电脑也能收到）
+  enabled:
+    - desktop
+    - feishu
+
+  feishu:
+    # 飞书群自定义机器人 webhook。
+    # 获取：飞书群 → 设置 → 群机器人 → 添加机器人 → 自定义机器人
+    # 也支持环境变量 YKT_FEISHU_WEBHOOK 覆盖（推荐，避免明文写入文件）。
+    #
+    # ⚠️ 注意：不是「飞书开放平台的 App ID / App Secret」，那是另一套东西。
+    webhook: ""
+    # 若机器人开启"签名校验"，填这里。环境变量：YKT_FEISHU_SECRET
+    secret: ""
+    # 可选：@某人（open_id）或 "all" 表示 @所有人。
+    at_user_id: ""
+
+  desktop:
+    # 桌面通知的标题前缀。
+    app_name: "雨课堂提醒"
+
+  webhook:
+    # 通道显示名（日志里用）。
+    name: "webhook"
+    # 目标地址，必须 https。环境变量：YKT_WEBHOOK_URL
+    #
+    # 常见服务示例（注意：URL 含凭据，务必用环境变量注入）：
+    #   Bark       https://api.day.app/{你的key}
+    #   Server酱    https://sctapi.ftqq.com/{你的key}.send
+    #   PushPlus   https://www.pushplus.plus/send?token={你的token}
+    #   企业微信     https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key={key}
+    #   钉钉        https://oapi.dingtalk.com/robot/send?access_token={token}
+    #   Telegram   https://api.telegram.org/bot{token}/sendMessage
+    url: ""
+    # 载荷格式：json（默认，字段 title/body/content/text）或 text（纯文本）
+    format: "json"
+    # 可选：自定义 JSON 字段名（默认 title / body）
+    # title_field: "title"
+    # body_field: "body"
+
+  email:
+    # SMTP 邮件通道：适合留档（邮件可检索），也是飞书被企业禁用时的替代。
+    #
+    # 常见邮箱参数（注意 password 是"授权码"，不是登录密码）：
+    #   QQ     smtp.qq.com:465      设置 → 账户 → 开启 SMTP → 获取授权码
+    #   163    smtp.163.com:465     同上
+    #   Gmail  smtp.gmail.com:465   需开两步验证 + 应用专用密码
+    #   校园邮箱 smtp.<学校域名>:465  多数开放，端口也可能是 587
+    #
+    # 端口语义：465 建连即 TLS；其它端口强制 STARTTLS，
+    # 服务端不支持就直接失败（不会把授权码明文发出去）。
+    host: ""
+    port: 465
+    username: ""      # 完整邮箱地址
+    password: ""      # 环境变量：YKT_EMAIL_PASSWORD
+    from: ""          # 留空则等于 username
+    to: []            # 收件人列表，例如 ["you@qq.com"]
+    subject_prefix: "【雨课堂提醒】"
+    # 仅用于自签名证书的内网邮件服务器。默认 false。
+    insecure_skip_verify: false
+
+policy:
+  # 截止前提醒窗口（分钟）。默认 1 天 / 6 小时 / 1 小时 / 15 分钟。
+  milestones_before_minutes: [1440, 360, 60, 15]
+  # 课堂类任务提前多少分钟提醒"即将开课"。
+  class_lead_minutes: 10
+  # 是否在截止后补发一次"已过期"。
+  notify_expired: true
+  # 静默时段（本地时间）：此时段内除紧急提醒外都顺延。
+  quiet_start_hour: 23
+  quiet_end_hour: 7
+  # 静默结束后顺延到的时刻。
+  quiet_defer_hour: 7
+  quiet_defer_minute: 30
+  # 此分钟数以内的提醒不受静默时段影响（15 分钟内截止必须叫醒你）。
+  urgent_minutes: 15
+  # true：同一任务多个窗口同时错过时，只发最紧急的一条（推荐）。
+  coalesce: true
+  # 单轮最多发送条数（coalesce=false 时生效）。
+  max_per_cycle: 8
+
+web_ui:
+  # 是否随 run 一起启动本地面板。
+  enabled: true
+  # 默认只监听本机回环，不对外暴露。
+  listen: 127.0.0.1:8787
+  # 若要绑定到局域网地址（如 0.0.0.0:8787），必须设置 token，
+  # 否则程序会拒绝启动。访问时带 ?token=xxx。
+  token: ""
+
+log:
+  # debug / info / warn / error
+  level: info
+  # 为空则只输出到标准错误。设置后写入文件（0600）。
+  # file: D:/ykt-data/ykt.log

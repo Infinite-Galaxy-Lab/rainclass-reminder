@@ -1,0 +1,39 @@
+services:
+  ykt-reminder:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: ykt-reminder:latest
+    container_name: ykt-reminder
+    restart: unless-stopped
+
+    environment:
+      TZ: Asia/Shanghai
+      YKT_DATA_DIR: /app/data
+      # 推荐用环境变量注入密钥，避免明文写在挂载的配置文件里。
+      # YKT_FEISHU_WEBHOOK: "https://open.feishu.cn/open-apis/bot/v2/hook/xxx"
+      # YKT_FEISHU_SECRET: "xxx"
+
+    volumes:
+      # 配置目录（含 config.yaml）
+      - ./config:/app/config:ro
+      # 运行数据：cookie 与 SQLite。
+      # 首次登录需要在该目录生成 cookie.json，因此可读写。
+      - ./data:/app/data
+
+    # 容器内的面板必须监听 0.0.0.0，映射到宿主机回环以保证安全。
+    # 注意：绑定 0.0.0.0 时程序要求配置 web_ui.token，否则拒绝启动。
+    ports:
+      - "127.0.0.1:8787:8787"
+
+    # 资源限制：常驻内存很小，留足余量即可。
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

@@ -1,0 +1,171 @@
+# 架构说明
+
+## 设计目标与约束
+
+1. **只读**：任何情况下都不提交作业、不答题、不交卷。这条约束体现在代码结构里——`internal/ykt` 不提供写方法，`endpoints.go` 只包含 GET 接口。
+2. **低占用**：单二进制、纯 Go、无 cgo、无前端构建步骤。发布构建约 13 MB，常驻 RSS 25–35 MB。
+3. **可维护**：接口细节只在一个包里，变更时改动面最小。
+4. **可测试**：领域层零 I/O，全部是纯函数。
+
+---
+
+## 分层
+
+```
+┌──────────────────────────────────────────────────────────┐
+│ cmd/ykt-reminder      仅解析 os.Args，转交 cli            │
+└────────────────────────┬─────────────────────────────────┘
+                         ▼
+┌──────────────────────────────────────────────────────────┐
+│ internal/cli          子命令 + 依赖装配（App）            │
+│                       唯一知道"怎么把各层拼起来"的地方    │
+└───┬──────────┬──────────┬──────────┬──────────┬──────────┘
+    ▼          ▼          ▼          ▼          ▼
+┌────────┐┌────────┐┌──────────┐┌────────┐┌─────────────┐
+│scheduler││ webui  ││  auth    ││ store  ││  notify     │
+│ 编排    ││ 面板   ││ 登录态   ││ 持久化 ││ 推送通道    │
+└───┬────┘└───┬────┘└────┬─────┘└───┬────┘└──────┬──────┘
+    │         │          │          │            │
+    ├─────────┴──────────┴──────────┴────────────┘
+    ▼
+┌──────────────────────────────────────────────────────────┐
+│ internal/ykt          雨课堂 API 客户端（只读）           │
+│                       唯一知道端点与字段含义的层          │
+└────────────────────────┬─────────────────────────────────┘
+                         ▼
+┌──────────────────────────────────────────────────────────┐
+│ internal/domain       纯领域：Task / Milestone / Policy   │
+│                       零 import，零 I/O，100% 可单测      │
+└──────────────────────────────────────────────────────────┘
+```
+
+**依赖规则**：箭头只能向下。`domain` 不 import 任何 internal 包；
+`ykt` 只依赖 `domain` 与 `netguard`；`scheduler` 只依赖接口（`Fetcher` / `Notifier` / `Repository`）。
+
+---
+
+## 数据流（一轮）
+
+```
+scheduler.RunCycle
+   │
+   ├─1─ Fetcher.FetchTasks(ctx)
+   │      └─ ykt.Client.FetchAll
+   │            ├─ GET /v2/api/web/courses/list      → []CourseItem
+   │            ├─ GET /mooc-api/.../course/chapter  → ChapterData（带 TTL 缓存）
+   │            ├─ GET /mooc-api/.../leaf_info/{cid}/{leaf}  → LeafInfoData（仅近 7 天）
+   │            └─ mapper.ToTask → []domain.Task
+   │
+   ├─2─ store.SaveTasks(tasks)          // 快照，供面板与失败兜底
+   │
+   ├─3─ store.PushedKeys()              // 已发送集合
+   │
+   ├─4─ domain.Decide(now, tasks, sent, policy)
+   │      ├─ MilestonesFor(task) → 截止前 N 窗口 + 过期 + 开课
+   │      ├─ 过滤：已发送 / 未到点 / 超出 lookahead
+   │      ├─ 静默时段顺延（非紧急项）
+   │      └─ Coalesce：每任务只留最紧急一条 + 单轮上限
+   │
+   ├─5─ 对每条提醒：
+   │      ├─ store.Claim(key)   // 原子占位，防重复推送
+   │      ├─ notify.RenderReminder → Message
+   │      ├─ Registry.Send → 飞书卡片
+   │      └─ store.Record(status=sent|failed)
+   │
+   └─6─ 对抑制项：store.Record(status=suppressed)
+          ↑ 关键：不做这步会导致被抑制的里程碑每轮重复出现
+```
+
+---
+
+## 关键设计决策
+
+### 0. 首次运行静默历史提醒（bootstrap）
+
+新装用户第一次启动时数据库为空，历史任务的过期里程碑会被判定为
+"该发未发"，一次性补发上百条"已截止"通知。实测真实账号触发 620 条。
+
+修复：首次运行（`PushedKeys` 为空）时，把 `fireAt` 早于 `now - 24h`
+的里程碑直接记为 `suppressed`，保留最近 24 小时内的（刚截止的仍应提醒）。
+
+### 1. 去重键包含截止时间
+
+```go
+key = taskID | kind | offsetMinutes | deadline.Unix()
+```
+
+好处：老师改期后 `deadline` 变化 → 键不同 → 自动重新计时并提醒。
+这是从 `asklight/zhihuishu-notifier` 的成熟做法沿用。
+
+### 2. Claim / Record / Release 三态
+
+| 状态 | 含义 | 是否计入已发送 |
+|---|---|---|
+| `claimed` | 已占位、正在发送 | ❌ |
+| `sent` | 发送成功 | ✅ |
+| `failed` | 发送失败，允许重试 | ❌ |
+| `suppressed` | 被合并/配额压制，视为已处理 | ✅ |
+
+`Claim` 用一条原子 UPSERT 完成"检查 + 占位"：
+
+```sql
+INSERT INTO pushes (...) VALUES (?, 'claimed', ...)
+ON CONFLICT(key) DO UPDATE SET status='claimed'
+WHERE pushes.status='failed'
+```
+
+这样既防止多实例重复推送，又允许失败重试。
+
+### 3. 抑制项也要记账
+
+最初实现只对"实际发送"的项记账，导致被 coalesce 压制的窗口在下一轮
+重新成为候选，形成"每次轮询都提醒一次"的缺陷。测试 `TestRunCycleSendsOnce`
+暴露了这个问题。现在抑制项也写入 `suppressed` 状态。
+
+### 4. MaxLookahead 放在 Decide 而不是 MilestonesFor
+
+```go
+// 正确：相对当前时刻判断
+if ms.FireAt.After(now.Add(cfg.MaxLookahead)) { continue }
+if ms.FireAt.Before(now.Add(-cfg.MaxLookahead)) { continue }
+```
+
+最初写在 `MilestonesFor` 里比较 `Deadline - FireAt`（即窗口长度），
+逻辑上恒为真，等于没做限制。测试 `TestDecideMaxLookahead` 抓到了。
+
+### 5. 宽容解析（flex.go）
+
+雨课堂同一字段在不同课程/版本下类型不稳定（`123` / `"123"` / `123.0`）。
+`FlexInt` / `FlexString` / `FlexTime` 解析失败时退化为零值而非报错，
+保证"一个坏字段不影响整个任务列表"。
+
+### 6. 请求量控制
+
+- 章节树按 `classroom_id` 缓存 `chapter_ttl`（默认 30 分钟）
+- 只对 `detail_lookahead_days` 天内到期的叶子拉详情
+- 并发信号量限制为 `poll.concurrency`（默认 4）
+- 轮询叠加 ±50% 抖动，非活跃时段拉长到 `idle_interval`
+
+实测（33 门课、363 个叶子）：每轮 33 次章节请求 + 279 次详情请求 = 312 个请求，
+每 10 分钟一轮 → 平均 31 个请求/分钟。首次之后章节树命中缓存，
+详情请求数会显著下降（只有新变更的叶子才需要重拉）。
+
+### 7. 类型判定以名称为主
+
+`leaf_type` 数字在同一门课内语义不一致（`6` 同时用于"作业-第1章"和"讨论-导论"），
+因此 `classify()` 按标题关键词优先判定，`leaf_type` 仅作兜底。
+
+同理，`leaf_type=0/8`（视频）虽有 `score_deadline`，但那是**课程结束时间**，
+因此 `TaskType.HasDeadline()` 对视频返回 false，避免期末批量误报。
+
+---
+
+## 扩展点
+
+| 想加什么 | 改哪里 |
+|---|---|
+| 新推送通道（邮件/QQ/TG） | 实现 `notify.Notifier`，在 `cli/app.go` 的 factories 注册 |
+| 新任务类型识别 | `internal/ykt/mapper.go` 的 `leafTypeMap` 加一行 |
+| 新 API 端点 | `internal/ykt/endpoints.go` + 一个 `api.go` 方法 |
+| 新提醒规则 | `internal/domain/milestone.go` 的 `MilestonesFor` |
+| 换存储后端 | 实现 `store.Repository` 接口 |

@@ -1,0 +1,51 @@
+[Unit]
+Description=长江雨课堂截止提醒助手
+Documentation=https://github.com/local/ykt-reminder
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# 建议创建专用用户：sudo useradd --system --home /var/lib/ykt-reminder --shell /usr/sbin/nologin ykt
+User=ykt
+Group=ykt
+
+# 可执行文件位置
+ExecStart=/usr/local/bin/ykt-reminder run
+
+# 配置与数据目录
+Environment=YKT_CONFIG=/etc/ykt-reminder/config.yaml
+Environment=YKT_DATA_DIR=/var/lib/ykt-reminder
+
+# 密钥通过环境变量注入（推荐），或写在 0600 的 EnvironmentFile 中
+# Environment=YKT_FEISHU_WEBHOOK=https://open.feishu.cn/open-apis/bot/v2/hook/xxx
+EnvironmentFile=-/etc/ykt-reminder/env
+
+WorkingDirectory=/var/lib/ykt-reminder
+
+# 崩溃自动重启
+Restart=always
+RestartSec=10s
+
+# 优雅停止：程序会收到 SIGTERM 并完成当前轮次
+KillSignal=SIGTERM
+TimeoutStopSec=30s
+
+# 安全加固
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/ykt-reminder
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+# 日志
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ykt-reminder
+
+[Install]
+WantedBy=multi-user.target

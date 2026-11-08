@@ -1,0 +1,31 @@
+# 编译产物
+/dist/
+/ykt-reminder.exe
+/ykt-reminder
+*.exe~
+*.test
+
+# 运行数据（含登录态与状态库，绝不入库）
+/data/
+/cookie.json
+*.db
+*.db-shm
+*.db-wal
+
+# 排障快照（probe 输出，含真实课程名）
+/probe_out*/
+/_probe/
+
+# 第三方 App 包与个人笔记
+*.apk
+*.apk.*
+
+# 工具缓存
+/.mimosa/
+/.zcode/
+
+# 编辑器
+.idea/
+.vscode/
+*.swp
+.DS_Store
