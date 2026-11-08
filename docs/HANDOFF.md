@@ -22,14 +22,15 @@
 |---|---|
 | 版本 | 0.7.0 |
 | 分支 | 发布工作基于远端 `main`；最新提交与验证见 Git 历史及 CI |
-| 测试 | 172 个 Go 测试函数、6 个面板纯逻辑测试，本地全绿 |
-| CI | 3 平台 Go 测试、4 平台构建、cgo 断言及面板纯逻辑测试；远端结果以 Actions 为准 |
+| 测试 | 181 个 Go 测试函数、6 个面板纯逻辑测试、9 个 Python 工具测试，本地全绿 |
+| CI | 3 平台 Go 测试、4 平台构建、cgo 断言、面板及 Python 工具测试；远端结果以 Actions 为准 |
 | 构建 | 六平台交叉编译，13 MB，零 cgo |
 | 注释密度 | 15%（只保留非显然的 WHY） |
 
 ```bash
 go test ./... && go vet ./... && gofmt -l ./cmd ./internal
 node --test internal/webui/task-view.test.mjs
+python -m unittest discover -s tools -p 'test_*.py' -v
 bash deploy/build.sh          # 六平台产出到 dist/
 ```
 
@@ -121,16 +122,37 @@ README 使用新版图标 `docs/assets/icon-v2.png`，第一版 PNG/ICO 保留�
 合成数据的桌面与 390px 窄屏浏览器检查覆盖分组、成绩、课堂筛选、键盘展开和横向溢出。
 真实账号检查只用于 P1，不发布页面截图或账号数据；未替换运行中的服务。
 
+### P2 工具与平台规划
+
+前述功能已于 2026-11-08 推送 main（`f4b7d51`），该提交的 Actions 通过。
+本轮随后新增可选的 `ykt.Observer`、本地白名单记录器、脱敏报告脚本与浏览器 CDP 监听脚本，
+不新增业务请求。请求记录从首次实际启动起持续 24 小时，重启不重置；认证结果继续记录。
+只将数据解释为本地导入后的可用性证据，不能声称已测得服务端真实寿命。
+
+本机自启任务名 `YktReminder`，新启动入口在 `%LOCALAPPDATA%\RainClassReminder`。
+安排在 **2026-11-09 00:00 +08:00 之后首次用户登录**延迟 30 秒启动；今天不重启当前服务。
+沿用已有配置与数据目录，部署设置与旧任务备份留在私有目录。官方网页监听仍需用户在专用浏览器窗口登录，
+不能标成已完成全天观察。步骤见 [OBSERVATION.md](OBSERVATION.md)。
+
+Go 全量测试、vet、gofmt、6 项 Node、9 项 Python 通过；新增回归完成实际反向验证。
+Windows 启动器用合成进程验证时间门槛、中文路径、环境变量与退出码；
+浏览器监听用本地合成 TLS 服务器验证 CDP、Set-Cookie 存在标记、脱敏与退出时保留浏览器。
+没有以真实账号流量冒充这些工具验证。
+
+Windows GUI 建议 Wails 薄壳，Android 建议 Kotlin / Compose + 小型 Go AAR，
+先验证依赖与真机后台行为。尚无 GUI 安装包或 APK，不把架构方向写成已支持。
+见 [ADR 0001](adr/0001-platform-clients.md)、[ROADMAP.md](ROADMAP.md) 与 [OPERATIONS.md](OPERATIONS.md)。
+
 ## 未做待办（按优先级）
 
 ### P2 · 需要时间
 
-- **测量 `sessionid` 真实寿命** — 已确认服务端从不下发 `sessionid` 的 Set-Cookie（见 `docs/EVOLUTION.md` §4.7.1），不会自动续期。缺的是"能撑多久"这个数，需要持续运行到 `ErrAuthExpired`。
-- **DevTools 抓一天 Network** — 唯一能回答"官方客户端为什么更持久"的办法。
+- **登录态持续观察** — 工具与明日自启已准备，等待足够长的成功/明确失效证据；既有样本未观察到 sessionid 下发，不能推广为服务端永远不会续期。
+- **官方网页 Network** — 脱敏监听脚本已提供，待专用浏览器登录并观察；项目侧采集不能替代网页侧证据。
 
 ### P4 · 功能增强
 
-- **移动端 App 发行版** — Android/iOS。桌面端逻辑可复用，数据层（`domain` + `ykt` + `store`）应保持无 UI 依赖。
+- **Windows GUI / Android 发行版** — 按 ADR 与路线图先做 AAR / 后台验证，再做 Wails 壳与原生界面。iOS 后续评估。
 - 自有图标已替换 README 占位图，PNG/ICO 见 `docs/BRANDING.md`。发行包图标与面板接入尚未完成。设计提示词仅在仓库外私有保存。
 
 ### P5 · 低优先级
@@ -177,6 +199,7 @@ go test ./...          # 应全绿
 go vet ./...           # 应无输出
 gofmt -l ./cmd ./internal  # 应无输出
 node --test internal/webui/task-view.test.mjs
+python -m unittest discover -s tools -p 'test_*.py' -v
 ```
 
 下一步优先积累 P2 的登录态寿命证据，再推进移动端与发行素材接入。

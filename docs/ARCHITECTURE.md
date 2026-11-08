@@ -185,3 +185,13 @@ if ms.FireAt.Before(now.Add(-cfg.MaxLookahead)) { continue }
 | 新 API 端点 | `internal/ykt/endpoints.go` + 一个 `api.go` 方法 |
 | 新提醒规则 | `internal/domain/milestone.go` 的 `MilestonesFor` |
 | 换存储后端 | 实现 `store.Repository` 接口 |
+
+## 被动观察与平台演进
+
+`ykt.Observer` 是可选输出端口，正常请求结束时输出类别、状态与固定结果分类。
+`BasicInfo` / `Courses` 解析业务包后再输出认证结果，避免把 HTTP 200 当成登录成功。
+CLI 负责将端口装配到 `internal/observe`，后者只保存白名单 JSONL；`ykt` 不依赖记录器、文件路径或报表工具。
+观察不开启时没有记录输出，不额外发请求，不改变缓存或轮询策略。跨重启的 24h 请求窗口与持续认证证据见 [OBSERVATION.md](OBSERVATION.md)。
+
+Windows GUI 与 Android 的目标边界、取舍及必须先验证的依赖见 [ADR 0001](adr/0001-platform-clients.md)。
+现阶段不引入空的平台工程或提前搬动核心；在第二个真实入口出现时提取应用用例，平台通知、登录与后台调度由适配器负责。

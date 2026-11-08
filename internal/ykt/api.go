@@ -15,7 +15,10 @@ import (
 // 本文件实现各只读接口的调用，返回已归一化的数据。
 
 // BasicInfo 校验登录态并返回用户信息。
-func (c *Client) BasicInfo(ctx context.Context) (BasicInfoData, error) {
+func (c *Client) BasicInfo(ctx context.Context) (info BasicInfoData, resultErr error) {
+	if c.observer != nil {
+		defer func() { c.observer.AuthResult(time.Now(), observationOutcome(resultErr)) }()
+	}
 	var env APIEnvelope[BasicInfoData]
 	if err := c.getJSON(ctx, pathUserBasicInfo, nil, &env); err != nil {
 		return BasicInfoData{}, err
@@ -33,7 +36,10 @@ func (c *Client) CheckAuth(ctx context.Context) error {
 }
 
 // Courses 返回学生视角的全部课程。
-func (c *Client) Courses(ctx context.Context) ([]CourseItem, error) {
+func (c *Client) Courses(ctx context.Context) (courses []CourseItem, resultErr error) {
+	if c.observer != nil {
+		defer func() { c.observer.AuthResult(time.Now(), observationOutcome(resultErr)) }()
+	}
 	q := url.Values{}
 	q.Set("identity", fmt.Sprintf("%d", c.identity))
 

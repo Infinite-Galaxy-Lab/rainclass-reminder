@@ -196,6 +196,9 @@ internal/webui              本地面板（embed 静态资源）
 - [docs/CHANNELS.md](docs/CHANNELS.md) —— 各推送通道的配置方法
 - [docs/EVOLUTION.md](docs/EVOLUTION.md) —— 迭代记录与踩坑归档
 - [docs/HANDOFF.md](docs/HANDOFF.md) —— 交接说明与当前待办
+- [docs/OBSERVATION.md](docs/OBSERVATION.md) —— 登录态与网页请求的被动观察
+- [docs/adr/0001-platform-clients.md](docs/adr/0001-platform-clients.md) —— Windows GUI / Android 架构方向
+- [docs/ROADMAP.md](docs/ROADMAP.md) / [docs/OPERATIONS.md](docs/OPERATIONS.md) —— 验收、发布与备份恢复
 
 ## 开发
 
@@ -212,14 +215,15 @@ gofmt -l ./cmd ./internal
 - [x] 只读抓取与分级提醒
 - [x] 四个推送通道
 - [x] 本地 Web 面板与扫码登录
-- [ ] 移动端 App 发行版（Android / iOS）
-- [ ] 跨课堂同名任务合并
-- [ ] 面板分数展示（`score/total_score`）
+- [x] 跨课堂同名任务合并（仅面板展示）
+- [x] 面板分数展示（`score/total_score`）
+- [x] 可选被动观察与脱敏报告工具
+- [ ] Windows GUI / Android 发行版（先完成平台验证，见架构决策）
 
 ## 常见问题
 
 **cookie 多久失效？**
-不固定，通常数天到数周。失效时程序会发一条告警（只发一次），面板上直接给出二维码。雨课堂不会通过 Set-Cookie 续期 `sessionid`，过期只能重新登录。
+尚未测得可靠的固定寿命。失效时程序会发一条告警（只发一次），面板可重新扫码。已有样本未观察到 `sessionid` 的 Set-Cookie，持续证据通过可选观察工具收集，不能据此断言服务端永远不会续期。
 
 **能否部署到服务器、登录在本地做？**
 可以。本地跑 `auth login`，把生成的 `cookie.json` 复制到服务器的数据目录即可。
@@ -234,4 +238,4 @@ gofmt -l ./cmd ./internal
 
 [MIT](LICENSE)
 
-图标版权归学堂在线所有，本项目仅作识别用途，后续将替换为自有设计。本项目与学堂在线、雨课堂官方无关联，请自行评估使用风险。
+项目采用以用户提供的雨课堂图标为参考生成的第二版衍生图标，第一版素材保留，见 [docs/BRANDING.md](docs/BRANDING.md)。本项目与学堂在线、雨课堂官方无关联。

@@ -88,6 +88,7 @@ type Client struct {
 	paceMu   sync.Mutex
 	lastSend time.Time
 	gap      time.Duration
+	observer Observer
 }
 
 // CacheTier 是"距截止 ≤ Within 时，缓存 TTL 用 TTL"的一档。
@@ -117,6 +118,7 @@ type Options struct {
 	Session       Session
 	Logger        *slog.Logger
 	Transport     http.RoundTripper
+	Observer      Observer
 }
 
 // New 构造客户端。
@@ -199,6 +201,7 @@ func New(opts Options) (*Client, error) {
 		logCache:       make(map[string]logCacheEntry),
 		logTTL:         opts.LearnLogTTL,
 		gap:            opts.MinRequestGap,
+		observer:       opts.Observer,
 	}
 	if opts.Session != nil {
 		c.session.Store(&sessionBox{s: opts.Session})
@@ -252,7 +255,7 @@ func (c *Client) getJSON(ctx context.Context, path string, query url.Values, out
 //
 // /leaf_info 缺这个头时返回 HTTP 200 但 error_code=40000，属于
 // "HTTP 成功但业务失败"，只看状态码会误判为正常。
-func (c *Client) getJSONScoped(ctx context.Context, path string, query url.Values, classroomID string, out any) error {
+func (c *Client) getJSONScoped(ctx context.Context, path string, query url.Values, classroomID string, out any) (resultErr error) {
 	select {
 	case c.sem <- struct{}{}:
 		defer func() { <-c.sem }()
@@ -280,9 +283,21 @@ func (c *Client) getJSONScoped(ctx context.Context, path string, query url.Value
 		req.Header.Set("classroom-id", classroomID)
 	}
 
+	event := RequestObservation{At: time.Now(), Endpoint: observationEndpoint(path)}
+	if c.observer != nil {
+		defer func() {
+			event.DurationMS = time.Since(event.At).Milliseconds()
+			event.Outcome = observationOutcome(resultErr)
+			c.observer.Request(event)
+		}()
+	}
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return fmt.Errorf("%w: 请求 %s 失败: %v", ErrUpstream, path, err)
+	}
+	event.Status = resp.StatusCode
+	if c.observer != nil {
+		recordResponseCookies(&event, resp)
 	}
 	defer func() {
 		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<16))

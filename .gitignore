@@ -17,6 +17,9 @@ cookie.json
 .env
 .env.*
 /config.yaml
+/observations/
+*.har
+__pycache__/
 
 # 排障快照（probe 输出，含真实课程名）
 /probe_out*/

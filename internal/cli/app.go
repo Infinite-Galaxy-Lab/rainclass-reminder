@@ -28,13 +28,14 @@ var Version = "dev"
 
 // App 持有各层依赖，供所有子命令复用。
 type App struct {
-	Cfg    config.Config
-	Repo   *store.SQLite
-	Auth   *auth.Store
-	Client *ykt.Client
-	Notify *notify.Registry
-	Log    *slog.Logger
-	Out    io.Writer
+	Cfg         config.Config
+	Repo        *store.SQLite
+	Auth        *auth.Store
+	Client      *ykt.Client
+	Notify      *notify.Registry
+	Log         *slog.Logger
+	Out         io.Writer
+	observation *localObserver
 }
 
 // Build 构造 App（不启动循环）。
@@ -61,6 +62,14 @@ func Build(cfg config.Config, out io.Writer) (*App, error) {
 		repo.Close()
 		return nil, err
 	}
+	observation, err := openObservation(cfg.DataDir, authStore, logger)
+	if err != nil {
+		logger.Warn("观察未启用，请检查观察时间及目录设置")
+	}
+	var observer ykt.Observer
+	if observation != nil {
+		observer = observation
+	}
 
 	client, err := ykt.New(ykt.Options{
 		BaseURL:        cfg.Ykt.BaseURL,
@@ -74,8 +83,12 @@ func Build(cfg config.Config, out io.Writer) (*App, error) {
 		MinRequestGap:  cfg.Poll.MinRequestGap,
 		Session:        authStore,
 		Logger:         logger,
+		Observer:       observer,
 	})
 	if err != nil {
+		if observation != nil {
+			_ = observation.recorder.Close()
+		}
 		repo.Close()
 		return nil, err
 	}
@@ -112,6 +125,9 @@ func Build(cfg config.Config, out io.Writer) (*App, error) {
 		},
 	})
 	if err != nil {
+		if observation != nil {
+			_ = observation.recorder.Close()
+		}
 		repo.Close()
 		return nil, err
 	}
@@ -120,18 +136,22 @@ func Build(cfg config.Config, out io.Writer) (*App, error) {
 	}
 
 	return &App{
-		Cfg:    cfg,
-		Repo:   repo,
-		Auth:   authStore,
-		Client: client,
-		Notify: registry,
-		Log:    logger,
-		Out:    out,
+		Cfg:         cfg,
+		Repo:        repo,
+		Auth:        authStore,
+		Client:      client,
+		Notify:      registry,
+		Log:         logger,
+		Out:         out,
+		observation: observation,
 	}, nil
 }
 
 // Close 释放资源。
 func (a *App) Close() {
+	if a.observation != nil {
+		_ = a.observation.recorder.Close()
+	}
 	// 先把内存里缓存的登录态回写落盘（ObserveCookie 有 30 秒节流），
 	// 否则刚拿到的 csrftoken 会随进程退出一起丢掉。
 	if a.Auth != nil {

@@ -48,6 +48,16 @@ jobs:
           node-version: '22'
       - run: node --test internal/webui/task-view.test.mjs
 
+  observation-tools:
+    name: observation tools
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m unittest discover -s tools -p 'test_*.py' -v
+
   build:
     name: build · ${{ matrix.goos }}/${{ matrix.goarch }}
     runs-on: ubuntu-latest
