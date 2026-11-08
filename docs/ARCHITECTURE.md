@@ -40,7 +40,8 @@
 ```
 
 **依赖规则**：箭头只能向下。`domain` 不 import 任何 internal 包；
-`ykt` 只依赖 `domain` 与 `netguard`；`scheduler` 只依赖接口（`Fetcher` / `Notifier` / `Repository`）。
+`ykt` 的内部依赖只有 `domain`；调度核心通过 `Fetcher` / `Notifier` / `Repository` 工作，
+`scheduler/source.go` 中的 `YktSource` 适配器负责连接具体的 `ykt.Client`。
 
 ---
 
@@ -150,10 +151,15 @@ if ms.FireAt.Before(now.Add(-cfg.MaxLookahead)) { continue }
 每 10 分钟一轮 → 平均 31 个请求/分钟。首次之后章节树命中缓存，
 详情请求数会显著下降（只有新变更的叶子才需要重拉）。
 
-### 7. 类型判定以名称为主
+### 7. 业务类型与网页路由分别判定
 
-`leaf_type` 数字在同一门课内语义不一致（`6` 同时用于"作业-第1章"和"讨论-导论"），
-因此 `classify()` 按标题关键词优先判定，`leaf_type` 仅作兜底。
+`leaf_type` 数字在同一门课内语义不一致（`6` 同时用于"作业-第1章"和"讨论-导论"）。
+有详情时，`taskTypeFromInfo()` 优先使用服务端标签；没有详情时，`classify()`
+按标题关键词判定，`leaf_type` 兜底。「雨课堂课件」保持 `video` 类型，
+计分与考核截止不足以证明它是需要提交的作业。
+
+网页路由由 `chapterSegmentByContent()` 独立判定：课件走 `video` 阅读器，
+不从业务类型倒推路由。学习日志中的 `courseware_id` 仅用于试卷类路由升级。
 
 同理，`leaf_type=0/8`（视频）虽有 `score_deadline`，但那是**课程结束时间**，
 因此 `TaskType.HasDeadline()` 对视频返回 false，避免期末批量误报。
@@ -161,6 +167,16 @@ if ms.FireAt.Before(now.Add(-cfg.MaxLookahead)) { continue }
 ---
 
 ## 扩展点
+
+面板的跨课堂合并仅发生在 `webui/assets/task-view.mjs`。相同课程名、标题、类型、
+截止与开始时间的不同课堂记录折叠展示；同一课堂有重名项或身份缺失时不合并。
+这是展示上的匹配，并不证明来源内容相同。课堂筛选在分组前生效，状态筛选在分组后生效，
+组内保留各课堂的完成状态、分数与链接。API、持久化、提醒键和发送流程仍逐课堂处理。
+
+`learn-log` 的 `score` / `total_score` 通过 `OptFloat` 保留缺失、零分和小数，
+经 `coursewareRef`、`Task`、SQLite nullable REAL 列到面板 JSON（缺失为 null）。
+分数不参与完成状态判定，也不改变原有 6 小时学习日志缓存；刷新面板不保证立即更新成绩。
+旧库打开时事务性补列，已有任务和推送记录保留。
 
 | 想加什么 | 改哪里 |
 |---|---|

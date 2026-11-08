@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
@@ -211,6 +212,155 @@ func TestSaveTasksReplaces(t *testing.T) {
 	snap, _ := repo.LoadTasks(ctx)
 	if len(snap.Tasks) != 1 || snap.Tasks[0].ID != "b" {
 		t.Errorf("应整体替换任务表，实际 %+v", snap.Tasks)
+	}
+}
+
+func TestTaskScoresRoundTrip(t *testing.T) {
+	repo := newTestRepo(t)
+	ctx := context.Background()
+	zero, decimal := 0.0, 2.75
+	decimalTotal := 4.5
+
+	tasks := []domain.Task{
+		{ID: "missing", Type: domain.TaskHomework, Title: "缺失"},
+		{ID: "zero", Type: domain.TaskHomework, Title: "零分", Score: &zero},
+		{ID: "decimal", Type: domain.TaskExam, Title: "小数", Score: &decimal, TotalScore: &decimalTotal},
+	}
+	if err := repo.SaveTasks(ctx, tasks); err != nil {
+		t.Fatal(err)
+	}
+
+	snap, err := repo.LoadTasks(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := make(map[string]domain.Task, len(snap.Tasks))
+	for _, task := range snap.Tasks {
+		got[task.ID] = task
+	}
+
+	if task := got["missing"]; task.Score != nil || task.TotalScore != nil {
+		t.Errorf("NULL 应回读为 nil: score=%v total=%v", task.Score, task.TotalScore)
+	}
+	if task := got["zero"]; task.Score == nil || *task.Score != 0 || task.TotalScore != nil {
+		t.Errorf("零分应保留且总分保持 nil: score=%v total=%v", task.Score, task.TotalScore)
+	}
+	if task := got["decimal"]; task.Score == nil || *task.Score != 2.75 ||
+		task.TotalScore == nil || *task.TotalScore != 4.5 {
+		t.Errorf("小数分数未往返: score=%v total=%v", task.Score, task.TotalScore)
+	}
+
+	if got["zero"].Score == got["decimal"].Score {
+		t.Error("每行的可选分数应使用独立指针")
+	}
+}
+
+func TestOpenMigratesTaskScoreColumns(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/legacy.db"
+	ctx := context.Background()
+
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const legacySchema = `
+CREATE TABLE pushes (
+    key        TEXT PRIMARY KEY,
+    task_id    TEXT NOT NULL,
+    task_title TEXT NOT NULL,
+    kind       TEXT NOT NULL,
+    offset_min INTEGER NOT NULL DEFAULT 0,
+    fire_at    INTEGER NOT NULL,
+    sent_at    INTEGER NOT NULL,
+    channel    TEXT NOT NULL DEFAULT '',
+    status     TEXT NOT NULL,
+    error      TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX idx_pushes_sent_at ON pushes(sent_at DESC);
+CREATE TABLE tasks (
+    id        TEXT PRIMARY KEY,
+    type      TEXT NOT NULL,
+    title     TEXT NOT NULL,
+    course    TEXT NOT NULL DEFAULT '',
+    deadline  INTEGER NOT NULL DEFAULT 0,
+    start_at  INTEGER NOT NULL DEFAULT 0,
+    status    TEXT NOT NULL DEFAULT 'unknown',
+    url       TEXT NOT NULL DEFAULT '',
+    source    TEXT NOT NULL DEFAULT '',
+    fetched_at INTEGER NOT NULL
+);
+CREATE TABLE kv (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+INSERT INTO tasks (id, type, title, course, deadline, start_at, status, url, source, fetched_at)
+VALUES ('old-task', 'homework', '旧任务', '旧课程', 0, 0, 'pending', 'https://example.test', 'legacy', 1);
+INSERT INTO pushes (key, task_id, task_title, kind, offset_min, fire_at, sent_at, channel, status, error)
+VALUES ('old-push', 'old-task', '旧任务', 'before_deadline', 15, 10, 11, 'test', 'sent', '');
+INSERT INTO kv (key, value) VALUES ('legacy-key', 'legacy-value');
+`
+	if _, err := db.ExecContext(ctx, legacySchema); err != nil {
+		_ = db.Close()
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	repo, err := Open(path)
+	if err != nil {
+		t.Fatalf("旧库迁移失败: %v", err)
+	}
+	snap, err := repo.LoadTasks(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snap.Tasks) != 1 || snap.Tasks[0].ID != "old-task" || snap.Tasks[0].Title != "旧任务" {
+		t.Fatalf("迁移后旧任务丢失或失真: %+v", snap.Tasks)
+	}
+	if snap.Tasks[0].Score != nil || snap.Tasks[0].TotalScore != nil {
+		t.Errorf("旧任务新增分数应默认为 NULL: score=%v total=%v", snap.Tasks[0].Score, snap.Tasks[0].TotalScore)
+	}
+	records, err := repo.RecentPushes(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 1 || records[0].Key != "old-push" {
+		t.Fatalf("迁移后推送记录丢失: %+v", records)
+	}
+	if value, err := repo.GetKV(ctx, "legacy-key"); err != nil || value != "legacy-value" {
+		t.Errorf("迁移后 kv 丢失: value=%q err=%v", value, err)
+	}
+
+	score, total := 0.0, 5.0
+	if err := repo.SaveTasks(ctx, []domain.Task{{
+		ID: "old-task", Type: domain.TaskHomework, Title: "旧任务", Course: "旧课程",
+		Status: domain.StatusDone, URL: "https://example.test", Source: "legacy",
+		Score: &score, TotalScore: &total,
+	}}); err != nil {
+		t.Fatalf("迁移后写入分数失败: %v", err)
+	}
+	if err := repo.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	repo2, err := Open(path)
+	if err != nil {
+		t.Fatalf("二次 Open 应幂等: %v", err)
+	}
+	defer repo2.Close()
+	snap, err = repo2.LoadTasks(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snap.Tasks) != 1 || snap.Tasks[0].Score == nil || *snap.Tasks[0].Score != 0 ||
+		snap.Tasks[0].TotalScore == nil || *snap.Tasks[0].TotalScore != 5 {
+		t.Fatalf("二次 Open 后分数未保留: %+v", snap.Tasks)
+	}
+	records, err = repo2.RecentPushes(ctx, 10)
+	if err != nil || len(records) != 1 || records[0].Key != "old-push" {
+		t.Errorf("二次 Open 后推送记录丢失: records=%+v err=%v", records, err)
 	}
 }
 

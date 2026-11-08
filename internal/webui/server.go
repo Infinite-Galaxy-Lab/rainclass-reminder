@@ -22,7 +22,7 @@ import (
 	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/ykt"
 )
 
-//go:embed assets/index.html assets/app.js assets/style.css
+//go:embed assets/index.html assets/app.js assets/task-view.mjs assets/style.css
 var assets embed.FS
 
 // Server 是本地 Web 面板。
@@ -167,7 +167,7 @@ func (s *Server) handleAsset(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimPrefix(r.URL.Path, "/")
 	// 只允许访问 assets 目录下的已知文件，杜绝路径穿越。
 	switch name {
-	case "assets/app.js":
+	case "assets/app.js", "assets/task-view.mjs":
 		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 	case "assets/style.css":
 		w.Header().Set("Content-Type", "text/css; charset=utf-8")
@@ -259,18 +259,21 @@ func (s *Server) channelNames() []string {
 
 // taskItem 是面板展示用的任务项。
 type taskItem struct {
-	ID               string `json:"id"`
-	Type             string `json:"type"`
-	TypeLabel        string `json:"type_label"`
-	Title            string `json:"title"`
-	Course           string `json:"course"`
-	Deadline         string `json:"deadline"`
-	DeadlineISO      string `json:"deadline_iso"`
-	Remaining        string `json:"remaining"`
-	RemainingSeconds int64  `json:"remaining_seconds"`
-	Status           string `json:"status"`
-	URL              string `json:"url"`
-	Expired          bool   `json:"expired"`
+	ID               string   `json:"id"`
+	Type             string   `json:"type"`
+	TypeLabel        string   `json:"type_label"`
+	Title            string   `json:"title"`
+	Course           string   `json:"course"`
+	Deadline         string   `json:"deadline"`
+	DeadlineISO      string   `json:"deadline_iso"`
+	Remaining        string   `json:"remaining"`
+	RemainingSeconds int64    `json:"remaining_seconds"`
+	Status           string   `json:"status"`
+	URL              string   `json:"url"`
+	Expired          bool     `json:"expired"`
+	StartAtISO       string   `json:"start_at_iso"`
+	Score            *float64 `json:"score"`
+	TotalScore       *float64 `json:"total_score"`
 }
 
 func (s *Server) handleTasks(w http.ResponseWriter, r *http.Request) {
@@ -287,15 +290,20 @@ func (s *Server) handleTasks(w http.ResponseWriter, r *http.Request) {
 	items := make([]taskItem, 0, len(snap.Tasks))
 	for _, t := range snap.Tasks {
 		it := taskItem{
-			ID:        t.ID,
-			Type:      string(t.Type),
-			TypeLabel: t.Type.Label(),
-			Title:     t.Title,
-			Course:    t.Course,
-			Status:    string(t.Status),
-			URL:       t.URL,
-			Remaining: t.Remaining(now),
-			Expired:   t.IsExpired(now),
+			ID:         t.ID,
+			Type:       string(t.Type),
+			TypeLabel:  t.Type.Label(),
+			Title:      t.Title,
+			Course:     t.Course,
+			Status:     string(t.Status),
+			URL:        t.URL,
+			Remaining:  t.Remaining(now),
+			Expired:    t.IsExpired(now),
+			Score:      t.Score,
+			TotalScore: t.TotalScore,
+		}
+		if !t.StartAt.IsZero() {
+			it.StartAtISO = t.StartAt.Format(time.RFC3339)
 		}
 		if t.HasDeadline() {
 			it.Deadline = t.Deadline.Format("01-02 15:04")

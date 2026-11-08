@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/icon.png" width="128" alt="RainClass Reminder">
+  <img src="docs/assets/icon-v2.png" width="128" alt="RainClass Reminder">
 </p>
 
 <h1 align="center">RainClass Reminder</h1>
@@ -38,7 +38,7 @@ RainClass Reminder 补上这一环：一个常驻后台的只读进程，按你�
 | **改期自动重算** | 去重键包含截止时间，老师改期即重新计时 |
 | **断网不轰炸** | 多个窗口同时错过时只补发最紧急的一条 |
 | **静默时段** | 23:00–07:00 内，1 小时以上的提醒顺延到 07:30；15 分钟内的照发 |
-| **本地 Web 面板** | 任务倒计时、微信扫码登录、推送历史，默认只监听 `127.0.0.1` |
+| **本地 Web 面板** | 任务倒计时、跨课堂同名任务折叠、各课堂分数、微信扫码登录、推送历史，默认只监听 `127.0.0.1` |
 | **单文件部署** | 纯 Go 静态链接，约 13 MB，常驻内存 25–35 MB，空闲 CPU ≈ 0% |
 
 ## 快速开始

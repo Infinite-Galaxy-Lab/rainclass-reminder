@@ -9,10 +9,14 @@
 
 # 运行数据（含登录态与状态库，绝不入库）
 /data/
-/cookie.json
+cookie.json
 *.db
 *.db-shm
 *.db-wal
+*.log
+.env
+.env.*
+/config.yaml
 
 # 排障快照（probe 输出，含真实课程名）
 /probe_out*/

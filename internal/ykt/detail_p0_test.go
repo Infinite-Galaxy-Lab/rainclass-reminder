@@ -122,9 +122,9 @@ func TestLearnLogStatusMapping(t *testing.T) {
 // 服务端就连失败都返回 HTTP 200，所以只看状态码永远发现不了。
 func TestLeafInfoUsesNodeIDAndClassroomHeader(t *testing.T) {
 	const (
-		classroom   = "25570088"
-		nodeID      = "48057154"
-		leafInfoID  = "48059375"
+		classroom   = "80000008"
+		nodeID      = "90000008"
+		leafInfoID  = "90000009"
 		expectedURL = "/mooc-api/v1/lms/learn/leaf_info/" + classroom + "/" + nodeID + "/"
 	)
 
@@ -187,7 +187,7 @@ func TestLeafInfoMissingHeaderIsError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = c.LeafInfo(context.Background(), "", "48057154")
+	_, err = c.LeafInfo(context.Background(), "", "90000008")
 	if err == nil {
 		t.Fatal("服务端返回 40000 时必须报错，否则调用方会拿着空结构体继续跑")
 	}

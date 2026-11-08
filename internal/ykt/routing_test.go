@@ -65,7 +65,7 @@ func TestChapterSegmentByContent(t *testing.T) {
 // TestTaskTypeFromLabel 锁定"服务端标签 → 业务类型"。
 //
 // 业务类型只影响展示与提醒，不影响路由。两者分开后，
-// 「作业1单元」可以既是"作业"（展示）又走 video 路由（能打开）。
+// 课件可以作为阅读材料展示并继续走 video 路由。
 func TestTaskTypeFromLabel(t *testing.T) {
 	cases := map[string]domain.TaskType{
 		"讨论":    domain.TaskDiscuss,
@@ -85,28 +85,18 @@ func TestTaskTypeFromLabel(t *testing.T) {
 	}
 }
 
-// TestAssessedCoursewareBecomesHomework 锁定"计分课件必须参与提醒"。
+// TestAssessedCoursewareRemainsReadingMaterial 锁定计分/考核字段不产生伪提交任务。
 //
-// 真实漏洞（v0.6.6 发现）：leaf_type=7 的 21 个"课件"里，
-// 「P1.3 电路元件」「作业1单元」「期中2026」「课程前后复习&预习」
-// 全部 is_assessed=true、score_proportion=0.05、score_deadline 有值，
-// 占课程成绩 5%，是需要提交且会过期的任务。
-//
-// 按"课件=TaskVideo"处理会让这 34 条任务完全不参与截止提醒——属于漏提醒。
-//
-// 判据 is_assessed && score_deadline>0 的实测分布（180 个叶子）：
-//
-//	leaf_type 5/7/9  出现      作业/计分课件/考试
-//	leaf_type 0/3/8  从不出现   纯视频/图文/课堂录像
-func TestAssessedCoursewareBecomesHomework(t *testing.T) {
-	// 计分课件 → 作业（会提醒）
+// 真机样本中，计分课件打开的是 video 阅读器，没有提交或答题入口；
+// 过截止后学习行为仍会记录，但完成度不更新。结论只覆盖已核验样本。
+func TestAssessedCoursewareRemainsReadingMaterial(t *testing.T) {
 	assessed := LeafInfoData{
 		ScoreDeadline: 1773748800,
 		IsAssessed:    true,
 	}
 	assessed.ContentInfo.ScoreEvaluation.Name = "雨课堂课件"
-	if got := taskTypeFromInfo(assessed); got != domain.TaskHomework {
-		t.Errorf("计分课件应提升为作业，实际 %v", got)
+	if got := taskTypeFromInfo(assessed); got != domain.TaskVideo {
+		t.Errorf("计分课件应保持阅读材料，实际 %v", got)
 	}
 
 	// 不评分的课件 → 仍是内容类（不提醒）
@@ -129,28 +119,40 @@ func TestAssessedCoursewareBecomesHomework(t *testing.T) {
 	if got := taskTypeFromInfo(video); got != domain.TaskVideo {
 		t.Errorf("课堂录像不应被提升，实际 %v", got)
 	}
+
+	// 真正的作业与考试仍按服务端标签参与提醒。
+	homework := LeafInfoData{IsAssessed: true, ScoreDeadline: 1773748800}
+	homework.ContentInfo.ScoreEvaluation.Name = "作业"
+	if got := taskTypeFromInfo(homework); got != domain.TaskHomework {
+		t.Errorf("作业标签应保持 homework，实际 %v", got)
+	}
+	exam := LeafInfoData{IsAssessed: true, ScoreDeadline: 1773748800}
+	exam.ContentInfo.ScoreEvaluation.Name = "考试"
+	if got := taskTypeFromInfo(exam); got != domain.TaskExam {
+		t.Errorf("考试标签应保持 exam，实际 %v", got)
+	}
 }
 
 // TestForumURLNeedsChapterID 锁定 forum 路由的 node_id 参数。
 //
-// 用户提供的真实链接：
+// 用户提供的脱敏链接示例：
 //
-//	/ai-workspace/lms-graph/25570088/forum/48057205?is_chapter=1&node_id=6338135
-//	  └ 48057205 = 叶子 id，6338135 = 该叶子的 chapter_id
+//	/ai-workspace/lms-graph/80000008/forum/80000022?is_chapter=1&node_id=7000008
+//	  └ 80000022 = 叶子 id，7000008 = 该叶子的 chapter_id
 //
-// 注意 node_id 参数**不是**叶子自己的 node_id 字段（同一条为 2308919）。
+// 注意 node_id 参数**不是**叶子自己的 node_id 字段（同一条为 7000004）。
 func TestForumURLNeedsChapterID(t *testing.T) {
-	got := taskURLByKind(testBase, "25570088", "48057205", "6338135",
+	got := taskURLByKind(testBase, "80000008", "80000022", "7000008",
 		"", "forum", routeChapter)
-	want := testBase + "/ai-workspace/lms-graph/25570088/forum/48057205?is_chapter=1&node_id=6338135"
+	want := testBase + "/ai-workspace/lms-graph/80000008/forum/80000022?is_chapter=1&node_id=7000008"
 	if got != want {
 		t.Errorf("forum URL = %q\nwant %q", got, want)
 	}
 
 	// 缺 chapter_id 时仍应能打开（只是内容区可能为空），不能退回首页。
-	got = taskURLByKind(testBase, "25570088", "48057205", "",
+	got = taskURLByKind(testBase, "80000008", "80000022", "",
 		"", "forum", routeChapter)
-	want = testBase + "/ai-workspace/lms-graph/25570088/forum/48057205?is_chapter=1"
+	want = testBase + "/ai-workspace/lms-graph/80000008/forum/80000022?is_chapter=1"
 	if got != want {
 		t.Errorf("缺 chapter_id 的 forum URL = %q\nwant %q", got, want)
 	}
@@ -170,21 +172,21 @@ func TestPaperRoutesUseCoursewareID(t *testing.T) {
 	}{
 		{
 			name:        "考试走老版考试页",
-			classroomID: "24984528",
-			courseware:  "2051258",
+			classroomID: "80000006",
+			courseware:  "7000003",
 			kind:        routeExamLegacy,
-			want:        testBase + "/v2/web/exam/24984528/2051258",
+			want:        testBase + "/v2/web/exam/80000006/7000003",
 		},
 		{
 			name:        "习题走老版成绩页",
-			classroomID: "25570085",
-			courseware:  "1745475",
+			classroomID: "80000007",
+			courseware:  "7000001",
 			kind:        routeQuizSummary,
-			want:        testBase + "/v2/web/quizSummary/25570085/1745475",
+			want:        testBase + "/v2/web/quizSummary/80000007/7000001",
 		},
 	}
 	for _, tc := range cases {
-		got := taskURLByKind(testBase, tc.classroomID, "46656990", "6338135",
+		got := taskURLByKind(testBase, tc.classroomID, "80000020", "7000008",
 			tc.courseware, "quiz", tc.kind)
 		if got != tc.want {
 			t.Errorf("%s: URL = %q, want %q", tc.name, got, tc.want)
@@ -192,9 +194,9 @@ func TestPaperRoutesUseCoursewareID(t *testing.T) {
 	}
 
 	// 缺 courseware_id 时必须退回章节路由，而不是拼出半截 URL。
-	got := taskURLByKind(testBase, "24984528", "46656990", "6338135",
+	got := taskURLByKind(testBase, "80000006", "80000020", "7000008",
 		"", "quiz", routeExamLegacy)
-	want := testBase + "/ai-workspace/lms-graph/24984528/quiz/46656990?is_chapter=1"
+	want := testBase + "/ai-workspace/lms-graph/80000006/quiz/80000020?is_chapter=1"
 	if got != want {
 		t.Errorf("缺 courseware_id 应退回章节路由，得到 %q", got)
 	}

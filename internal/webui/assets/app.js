@@ -7,6 +7,8 @@
 //      URL，因此面板无法被用作向第三方地址发起请求的跳板；
 //   3. 不假设后端字段一定存在，缺失时退化显示而不是抛错。
 
+import { classroomKey, selectTaskGroups, formatScore } from "./task-view.mjs";
+
 (function () {
   "use strict";
 
@@ -117,8 +119,7 @@
   // 任务 id 形如 ykt:<classroom_id>:<leaf_id>，第二段能区分同名课程。
   // 没有可靠 id 时退回课程名（此时同名课程本就无法区分）。
   function courseKey(t) {
-    const parts = (t.id || "").split(":");
-    return parts.length >= 2 && parts[1] ? parts[1] : t.course || "";
+    return classroomKey(t) || t.course || "";
   }
 
   // ---------- 请求 ----------
@@ -152,24 +153,7 @@
 
   // skipType 用于统计 chip 角标：其余条件生效、类型不限。
   function applyFilters(list, skipType) {
-    const q = state.q.trim().toLowerCase();
-    return list.filter((t) => {
-      if (!skipType && state.type !== "all" && t.type !== state.type) return false;
-      if (state.course && courseKey(t) !== state.course) return false;
-      if (q) {
-        const hay = ((t.title || "") + "\n" + (t.course || "")).toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      if (state.scope === "due") {
-        // 主视图：只留有截止时间、未完成、未过期的任务。
-        // 视频/课件没有截止概念，混进来会淹没有效信息（实测 363 条里 197 条是视频）。
-        if (!t.deadline) return false;
-        if (t.status === "done" || t.expired) return false;
-      } else if (state.scope === "open") {
-        if (t.status === "done" || t.expired) return false;
-      }
-      return true;
-    });
+    return selectTaskGroups(list, state, skipType);
   }
 
   // ---------- 渲染：左侧健康状态 ----------
@@ -343,11 +327,9 @@
     const shown = applyFilters(tasks, false);
 
     $("task-count-note").textContent = shown.length
-      ? `${shown.length} 条 · 共 ${tasks.length} 条`
-      : `共 ${tasks.length} 条`;
+      ? `${shown.length} 项 · ${shown.reduce((n, t) => n + t.members.length, 0)} 条课堂记录`
+      : `共 ${tasks.length} 条课堂记录`;
 
-    // 左栏数字跟随当前筛选，而不是永远显示总任务数。
-    // 之前固定显示 363（含 197 个无截止视频），与主视图的 42 条对不上。
     $("rail-task-count").textContent = String(shown.length);
 
     renderChips();
@@ -358,7 +340,7 @@
     }
 
     const frag = document.createDocumentFragment();
-    for (const t of shown) frag.appendChild(taskRow(t));
+    for (const t of shown) frag.appendChild(t.members.length > 1 ? groupRow(t) : taskRow(t));
     box.appendChild(frag);
   }
 
@@ -408,10 +390,27 @@
     return box;
   }
 
-  function taskRow(t) {
+  function groupRow(t) {
+    const details = el("details", "task-group");
+    const summary = taskRow({ ...t, url: "", score: null, total_score: null }, "summary");
+    summary.classList.add("group-summary");
+    const done = t.members.filter((member) => member.status === "done").length;
+    summary.querySelector(".task-sub").appendChild(el("span", "group-count", `${t.members.length} 个课堂 · ${done}/${t.members.length} 已完成`));
+    details.appendChild(summary);
+    const children = el("div", "group-members");
+    for (const member of t.members) {
+      const row = taskRow(member);
+      row.querySelector(".course").textContent = `课堂 ${classroomKey(member)}`;
+      children.appendChild(row);
+    }
+    details.appendChild(children);
+    return details;
+  }
+
+  function taskRow(t, tag = "div") {
     const lvl = levelOf(t);
 
-    const row = el("div", "task");
+    const row = el(tag, "task");
     row.dataset.level = lvl;
     row.dataset.status = t.status;
     if (t.expired) row.dataset.expired = "1";
@@ -446,6 +445,8 @@
 
     // --- 右：倒计时 + 截止时刻 ---
     const side = el("div", "task-side");
+    const score = formatScore(t);
+    if (score) side.appendChild(el("span", "task-score num", score));
 
     const due = el("span", "due");
     due.dataset.level = lvl;

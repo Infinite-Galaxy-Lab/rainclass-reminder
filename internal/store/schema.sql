@@ -21,6 +21,8 @@ CREATE TABLE IF NOT EXISTS tasks (
     deadline  INTEGER NOT NULL DEFAULT 0,
     start_at  INTEGER NOT NULL DEFAULT 0,
     status    TEXT NOT NULL DEFAULT 'unknown',
+    score     REAL,
+    total_score REAL,
     url       TEXT NOT NULL DEFAULT '',
     source    TEXT NOT NULL DEFAULT '',
     fetched_at INTEGER NOT NULL

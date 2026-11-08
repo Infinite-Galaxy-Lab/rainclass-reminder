@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	_ "embed"
 	"errors"
 	"fmt"
 	"os"
@@ -13,41 +14,8 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// schemaSQL 为建表脚本（纯 DDL，无外部输入）。
-const schemaSQL = `
-CREATE TABLE IF NOT EXISTS pushes (
-    key        TEXT PRIMARY KEY,
-    task_id    TEXT NOT NULL,
-    task_title TEXT NOT NULL,
-    kind       TEXT NOT NULL,
-    offset_min INTEGER NOT NULL DEFAULT 0,
-    fire_at    INTEGER NOT NULL,
-    sent_at    INTEGER NOT NULL,
-    channel    TEXT NOT NULL DEFAULT '',
-    status     TEXT NOT NULL,
-    error      TEXT NOT NULL DEFAULT ''
-);
-CREATE INDEX IF NOT EXISTS idx_pushes_sent_at ON pushes(sent_at DESC);
-CREATE TABLE IF NOT EXISTS tasks (
-    id        TEXT PRIMARY KEY,
-    type      TEXT NOT NULL,
-    title     TEXT NOT NULL,
-    course    TEXT NOT NULL DEFAULT '',
-    deadline  INTEGER NOT NULL DEFAULT 0,
-    start_at  INTEGER NOT NULL DEFAULT 0,
-    status    TEXT NOT NULL DEFAULT 'unknown',
-    url       TEXT NOT NULL DEFAULT '',
-    source    TEXT NOT NULL DEFAULT '',
-    fetched_at INTEGER NOT NULL
-);
-CREATE TABLE IF NOT EXISTS kv (
-    key   TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-);
-`
-
-// openSchema 返回包内固定的建表语句，确保只有一处来源。
-func openSchema() string { return schemaSQL }
+//go:embed schema.sql
+var schemaSQL string
 
 // SQLite 是 Repository 的 SQLite 实现（纯 Go 驱动，无需 cgo）。
 type SQLite struct {
@@ -78,11 +46,58 @@ func Open(path string) (*SQLite, error) {
 		db.Close()
 		return nil, fmt.Errorf("设置 journal_mode 失败: %w", err)
 	}
-	if _, err := db.ExecContext(context.Background(), openSchema()); err != nil {
+	if _, err := db.ExecContext(context.Background(), schemaSQL); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("初始化表结构失败: %w", err)
 	}
+	if err := migrateTaskScores(context.Background(), db); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("迁移任务分数字段失败: %w", err)
+	}
 	return &SQLite{db: db}, nil
+}
+
+func migrateTaskScores(ctx context.Context, db *sql.DB) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	rows, err := tx.QueryContext(ctx, `PRAGMA table_info(tasks)`)
+	if err != nil {
+		return err
+	}
+	columns := make(map[string]bool)
+	for rows.Next() {
+		var cid, notNull, pk int
+		var name, typ string
+		var defaultValue any
+		if err := rows.Scan(&cid, &name, &typ, &notNull, &defaultValue, &pk); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		columns[name] = true
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return err
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+
+	if !columns["score"] {
+		if _, err := tx.ExecContext(ctx, `ALTER TABLE tasks ADD COLUMN score REAL`); err != nil {
+			return err
+		}
+	}
+	if !columns["total_score"] {
+		if _, err := tx.ExecContext(ctx, `ALTER TABLE tasks ADD COLUMN total_score REAL`); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 func (s *SQLite) Close() error {
@@ -209,8 +224,8 @@ func (s *SQLite) SaveTasks(ctx context.Context, tasks []domain.Task) error {
 		return err
 	}
 	pstmt, err := tx.PrepareContext(ctx, `
-INSERT OR REPLACE INTO tasks (id, type, title, course, deadline, start_at, status, url, source, fetched_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+INSERT OR REPLACE INTO tasks (id, type, title, course, deadline, start_at, status, url, source, score, total_score, fetched_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return err
 	}
@@ -219,7 +234,8 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	now := time.Now().Unix()
 	for _, t := range tasks {
 		if _, err := pstmt.ExecContext(ctx, t.ID, string(t.Type), t.Title, t.Course,
-			unixOrZero(t.Deadline), unixOrZero(t.StartAt), string(t.Status), t.URL, t.Source, now); err != nil {
+			unixOrZero(t.Deadline), unixOrZero(t.StartAt), string(t.Status), t.URL, t.Source,
+			t.Score, t.TotalScore, now); err != nil {
 			return fmt.Errorf("写入任务 %s 失败: %w", t.ID, err)
 		}
 	}
@@ -229,7 +245,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 // LoadTasks 读取任务快照。
 func (s *SQLite) LoadTasks(ctx context.Context) (TaskSnapshot, error) {
 	rows, err := s.db.QueryContext(ctx, `
-SELECT id, type, title, course, deadline, start_at, status, url, source
+SELECT id, type, title, course, deadline, start_at, status, url, source, score, total_score
 FROM tasks ORDER BY (deadline = 0), deadline ASC`)
 	if err != nil {
 		return TaskSnapshot{}, err
@@ -241,14 +257,23 @@ FROM tasks ORDER BY (deadline = 0), deadline ASC`)
 		var t domain.Task
 		var typ, status string
 		var deadline, startAt int64
+		var score, totalScore sql.NullFloat64
 		if err := rows.Scan(&t.ID, &typ, &t.Title, &t.Course, &deadline, &startAt,
-			&status, &t.URL, &t.Source); err != nil {
+			&status, &t.URL, &t.Source, &score, &totalScore); err != nil {
 			return TaskSnapshot{}, err
 		}
 		t.Type = domain.TaskType(typ)
 		t.Status = domain.TaskStatus(status)
 		t.Deadline = timeOrZero(deadline)
 		t.StartAt = timeOrZero(startAt)
+		if score.Valid {
+			v := score.Float64
+			t.Score = &v
+		}
+		if totalScore.Valid {
+			v := totalScore.Float64
+			t.TotalScore = &v
+		}
 		snap.Tasks = append(snap.Tasks, t)
 	}
 	if err := rows.Err(); err != nil {

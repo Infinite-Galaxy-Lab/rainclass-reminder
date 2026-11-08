@@ -6,30 +6,38 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/domain"
 )
 
 // TestCoursewareIndexFromLearnLogs 锁定"用学习日志补全试卷 ID"的行为。
 //
-// 真实数据（2026-11，用户在浏览器里确认可正常打开的页面）：
+// 脱敏样例（2026-11，用户在浏览器里确认可正常打开的页面）：
 //
-//	模拟题1       learning log: type=5 courseware_id=2051258
-//	              → /v2/web/exam/24984528/2051258
-//	T1.1.4 PN结   learning log: type=4 courseware_id=1745475
-//	              → /v2/web/quizSummary/25570085/1745475
+//	模拟题1       learning log: type=5 courseware_id=7000003
+//	              → /v2/web/exam/80000006/7000003
+//	T1.1.4 PN结   learning log: type=4 courseware_id=7000001
+//	              → /v2/web/quizSummary/80000007/7000001
 //
 // 章节树里根本没有这两个 ID：exam.exam_id 全站为空、
 // leaf_info 详情对这两类返回 404。
 func TestCoursewareIndexFromLearnLogs(t *testing.T) {
 	const (
-		examClassroom = "24984528"
-		examNodeID    = "46656990"
-		examID        = "2051258"
+		examClassroom = "80000006"
+		examNodeID    = "80000020"
+		examID        = "7000003"
 		examTitle     = "模拟题1:2026年大学生“AI+信息素养”大赛"
 
-		quizClassroom = "25570085"
-		quizNodeID    = "48558755"
-		quizID        = "1745475"
+		quizClassroom = "80000007"
+		quizNodeID    = "90000010"
+		quizID        = "7000001"
 		quizTitle     = "T1.1.4 PN结的形成及特性"
+		decimalNodeID = "90000012"
+		decimalID     = "7000004"
+		decimalTitle  = "T1.2 小数成绩"
+		missingNodeID = "90000013"
+		missingID     = "7000005"
+		missingTitle  = "T1.3 缺失成绩"
 	)
 
 	mux := http.NewServeMux()
@@ -45,9 +53,9 @@ func TestCoursewareIndexFromLearnLogs(t *testing.T) {
 		case examClassroom:
 			// 注意：exam 对象里**没有** exam_id（真实情况就是这样）。
 			_, _ = w.Write([]byte(`{"success":true,"errcode":0,"data":{"course_chapter":[{
-			  "id": 6117433, "name": "备赛",
+			  "id": 90000001, "name": "备赛",
 			  "section_leaf_list": [{
-			    "id": ` + examNodeID + `, "leafinfo_id": 46659214, "leaf_type": 5,
+			    "id": ` + examNodeID + `, "leafinfo_id": 90000007, "leaf_type": 5,
 			    "name": "` + examTitle + `",
 			    "score_deadline": 1798678800000,
 			    "exam": {"online_proctor": 0, "is_offline": false}
@@ -55,10 +63,18 @@ func TestCoursewareIndexFromLearnLogs(t *testing.T) {
 			}]}}`))
 		case quizClassroom:
 			_, _ = w.Write([]byte(`{"success":true,"errcode":0,"data":{"course_chapter":[{
-			  "id": 6354675, "name": "第一章",
+			  "id": 90000002, "name": "第一章",
 			  "section_leaf_list": [{
-			    "id": ` + quizNodeID + `, "leafinfo_id": 48560976, "leaf_type": 9,
+			    "id": ` + quizNodeID + `, "leafinfo_id": 90000011, "leaf_type": 9,
 			    "name": "` + quizTitle + `",
+			    "score_deadline": 1801411199000
+			  }, {
+			    "id": ` + decimalNodeID + `, "leafinfo_id": 90000014, "leaf_type": 9,
+			    "name": "` + decimalTitle + `",
+			    "score_deadline": 1801411199000
+			  }, {
+			    "id": ` + missingNodeID + `, "leafinfo_id": 90000015, "leaf_type": 9,
+			    "name": "` + missingTitle + `",
 			    "score_deadline": 1801411199000
 			  }]
 			}]}}`))
@@ -77,12 +93,14 @@ func TestCoursewareIndexFromLearnLogs(t *testing.T) {
 		switch {
 		case strings.Contains(r.URL.Path, examClassroom):
 			_, _ = w.Write([]byte(`{"errcode":0,"data":{"activities":[
-			  {"type":5,"id":33516112,"courseware_id":"` + examID + `","title":"` + examTitle + `","total_score":100,"problem_count":50,"status":1}
+			  {"type":5,"id":90000004,"courseware_id":"` + examID + `","title":"` + examTitle + `","total_score":100,"problem_count":50,"status":1}
 			],"has_more":false}}`))
 		case strings.Contains(r.URL.Path, quizClassroom):
 			_, _ = w.Write([]byte(`{"errcode":0,"data":{"activities":[
-			  {"type":4,"id":33973938,"courseware_id":"` + quizID + `","title":"` + quizTitle + `","total_score":5,"problem_count":4,"status":3},
-			  {"type":14,"id":33973939,"courseware_id":"9999999","title":"` + quizTitle + `","status":3}
+			  {"type":4,"id":90000005,"courseware_id":"` + quizID + `","title":"` + quizTitle + `","score":0,"total_score":5,"problem_count":4,"status":3},
+			  {"type":4,"id":90000007,"courseware_id":"` + decimalID + `","title":"` + decimalTitle + `","score":2.75,"total_score":4.5,"problem_count":4,"status":1},
+			  {"type":4,"id":90000008,"courseware_id":"` + missingID + `","title":"` + missingTitle + `","problem_count":4,"status":0},
+			  {"type":14,"id":90000006,"courseware_id":"90000003","title":"` + quizTitle + `","status":3}
 			],"has_more":false}}`))
 		default:
 			_, _ = w.Write([]byte(`{"errcode":0,"data":{"activities":[],"has_more":false}}`))
@@ -114,8 +132,10 @@ func TestCoursewareIndexFromLearnLogs(t *testing.T) {
 	}
 
 	byID := make(map[string]string, len(tasks))
+	byTaskID := make(map[string]domain.Task, len(tasks))
 	for _, tk := range tasks {
 		byID[tk.ID] = tk.URL
+		byTaskID[tk.ID] = tk
 	}
 
 	// 考试：必须走老版 exam 路由 + exam_id（courseware_id）。
@@ -130,12 +150,36 @@ func TestCoursewareIndexFromLearnLogs(t *testing.T) {
 		t.Errorf("习题链接 = %q\nwant %q", got, wantQuiz)
 	}
 
+	zero := byTaskID["ykt:"+quizClassroom+":"+quizNodeID]
+	if zero.Score == nil || *zero.Score != 0 || zero.TotalScore == nil || *zero.TotalScore != 5 {
+		t.Errorf("零分任务分数丢失: score=%v total=%v", zero.Score, zero.TotalScore)
+	}
+	if zero.Status != domain.StatusDone {
+		t.Errorf("零分但 status=3 应保持已完成，实际 %v", zero.Status)
+	}
+
+	decimal := byTaskID["ykt:"+quizClassroom+":"+decimalNodeID]
+	if decimal.Score == nil || *decimal.Score != 2.75 || decimal.TotalScore == nil || *decimal.TotalScore != 4.5 {
+		t.Errorf("小数分数未保留: score=%v total=%v", decimal.Score, decimal.TotalScore)
+	}
+	if decimal.Status != domain.StatusPending {
+		t.Errorf("status=1 应保持未完成，实际 %v", decimal.Status)
+	}
+
+	missing := byTaskID["ykt:"+quizClassroom+":"+missingNodeID]
+	if missing.Score != nil || missing.TotalScore != nil {
+		t.Errorf("缺失分数应保持 nil: score=%v total=%v", missing.Score, missing.TotalScore)
+	}
+	if missing.Status != domain.StatusPending {
+		t.Errorf("status=0 应保持未完成，实际 %v", missing.Status)
+	}
+
 	// 绝不能再出现 node id 或 leafinfo_id 拼的链接。
 	for id, u := range byID {
 		if strings.Contains(u, examNodeID) || strings.Contains(u, quizNodeID) {
 			t.Errorf("%s 的链接含章节节点 id（应使用 courseware_id）: %q", id, u)
 		}
-		if strings.Contains(u, "46659214") || strings.Contains(u, "48560976") {
+		if strings.Contains(u, "90000007") || strings.Contains(u, "90000011") {
 			t.Errorf("%s 的链接含 leafinfo_id: %q", id, u)
 		}
 	}
@@ -185,7 +229,7 @@ func TestLearnLogTypeFilters(t *testing.T) {
 // TestCoursewareWebURLRouting 验证 type → 路由的映射。
 func TestCoursewareWebURLRouting(t *testing.T) {
 	const base = "https://changjiang.yuketang.cn"
-	const cid = "25570088"
+	const cid = "80000008"
 
 	cases := []struct {
 		name string
@@ -194,13 +238,13 @@ func TestCoursewareWebURLRouting(t *testing.T) {
 	}{
 		{
 			name: "考试走 exam 路由",
-			ref:  coursewareRef{coursewareID: "2051258", kind: LearnLogExam},
-			want: base + "/v2/web/exam/25570088/2051258",
+			ref:  coursewareRef{coursewareID: "7000003", kind: LearnLogExam},
+			want: base + "/v2/web/exam/80000008/7000003",
 		},
 		{
 			name: "习题走 quizSummary 路由",
-			ref:  coursewareRef{coursewareID: "1745475", kind: LearnLogQuiz},
-			want: base + "/v2/web/quizSummary/25570088/1745475",
+			ref:  coursewareRef{coursewareID: "7000001", kind: LearnLogQuiz},
+			want: base + "/v2/web/quizSummary/80000008/7000001",
 		},
 		{
 			name: "未知类型不生成链接",

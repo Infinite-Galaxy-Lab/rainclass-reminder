@@ -278,12 +278,12 @@ type LearnLogActivity struct {
 	Title        FlexString `json:"title"`
 	CreateTime   FlexTime   `json:"create_time"`
 	Deadline     FlexTime   `json:"deadline"`
-	TotalScore   FlexInt    `json:"total_score"`
+	TotalScore   OptFloat   `json:"total_score"`
 	ProblemCount FlexInt    `json:"problem_count"`
 	// 完成状态：0/1 未完成、3 已完成。用 OptInt 而非 FlexInt，
 	// 因为 0 是合法取值，必须与"字段缺失"区分开。
-	Status OptInt  `json:"status"`
-	Score  FlexInt `json:"score"`
+	Status OptInt   `json:"status"`
+	Score  OptFloat `json:"score"`
 }
 
 // OptInt 是"可缺省整数"，区分字段不存在与值为 0。

@@ -23,7 +23,7 @@ const (
 	TaskExam     TaskType = "exam"     // 考试
 	TaskDiscuss  TaskType = "discuss"  // 讨论
 	TaskClass    TaskType = "class"    // 课堂/直播
-	TaskVideo    TaskType = "video"    // 视频/课件（可能带完成期限）
+	TaskVideo    TaskType = "video"    // 视频/课件
 	TaskOther    TaskType = "other"    // 未知类型，仅展示不提醒
 )
 
@@ -71,15 +71,17 @@ const (
 // Task 是一个归一化后的待办任务。它是整个系统内部唯一流通的任务表示，
 // API DTO 只能通过 ykt/mapper 转成它，不允许上层直接接触原始 JSON。
 type Task struct {
-	ID       string     // 稳定唯一键（跨轮次不变），用于去重与持久化
-	Type     TaskType   // 归一化类型
-	Title    string     // 任务标题
-	Course   string     // 课程名
-	Deadline time.Time  // 截止时间；零值表示无截止
-	StartAt  time.Time  // 开课/开始时间；零值表示无
-	Status   TaskStatus // 完成状态
-	URL      string     // 在网页端的直达链接
-	Source   string     // 数据来源标识（如 "chapter:leaf"），便于排障
+	ID         string     // 稳定唯一键（跨轮次不变），用于去重与持久化
+	Type       TaskType   // 归一化类型
+	Title      string     // 任务标题
+	Course     string     // 课程名
+	Deadline   time.Time  // 截止时间；零值表示无截止
+	StartAt    time.Time  // 开课/开始时间；零值表示无
+	Status     TaskStatus // 完成状态
+	Score      *float64   // 可选得分；nil 表示接口未提供
+	TotalScore *float64   // 可选总分；nil 表示接口未提供
+	URL        string     // 在网页端的直达链接
+	Source     string     // 数据来源标识（如 "chapter:leaf"），便于排障
 }
 
 // Validate 做最小一致性检查：ID 与标题必须存在。

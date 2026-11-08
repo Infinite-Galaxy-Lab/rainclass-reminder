@@ -9,14 +9,14 @@ import (
 // TestEnvelopeSuccess 验证正常成功响应的解析。
 func TestEnvelopeSuccess(t *testing.T) {
 	var env APIEnvelope[BasicInfoData]
-	body := `{"success":true,"data":{"user_id":56106389,"nickname":"张三"}}`
+	body := `{"success":true,"data":{"user_id":90000012,"nickname":"张三"}}`
 	if err := json.Unmarshal([]byte(body), &env); err != nil {
 		t.Fatalf("解析失败: %v", err)
 	}
 	if !env.OK() {
 		t.Fatal("应判定为成功")
 	}
-	if env.Data.UserID.String() != "56106389" {
+	if env.Data.UserID.String() != "90000012" {
 		t.Fatalf("user_id 解析错误: %q", env.Data.UserID.String())
 	}
 }
@@ -99,7 +99,7 @@ func TestEnvelopeErrorCodeField(t *testing.T) {
 
 	// 成功响应：success=true 且无错误码。
 	var env3 APIEnvelope[LeafInfoData]
-	if err := json.Unmarshal([]byte(`{"success":true,"data":{"id":48057154,"name":"《第一章习题》"}}`), &env3); err != nil {
+	if err := json.Unmarshal([]byte(`{"success":true,"data":{"id":90000008,"name":"《第一章习题》"}}`), &env3); err != nil {
 		t.Fatal(err)
 	}
 	if !env3.OK() {

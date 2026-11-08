@@ -7,12 +7,11 @@ import (
 	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/domain"
 )
 
-// TestCoursewareRealPayload 用真实响应跑一遍整条链路，定位
-// "计分课件没有被提升为作业"的原因。
-func TestCoursewareRealPayload(t *testing.T) {
-	// 这是 /leaf_info/23175789/45030169/ 的真实响应的关键字段（2026-11-08）
+// TestCoursewareRealPayloadStaysVideo 确认计分/考核字段不会把课件变成提交任务。
+func TestCoursewareRealPayloadStaysVideo(t *testing.T) {
+	// 这是 /leaf_info/80000004/80000013/ 的脱敏响应的关键字段（2026-11-08）
 	raw := `{
-	  "id": 45030169,
+	  "id": 80000013,
 	  "name": "作业1单元",
 	  "leaf_type": 7,
 	  "is_assessed": true,
@@ -51,25 +50,30 @@ func TestCoursewareRealPayload(t *testing.T) {
 		t.Fatal("score_deadline 解析失败")
 	}
 
-	// 业务类型应当被提升为作业
-	if got := taskTypeFromInfo(d); got != domain.TaskHomework {
-		t.Errorf("taskTypeFromInfo = %v, want homework", got)
+	if got := taskTypeFromInfo(d); got != domain.TaskVideo {
+		t.Errorf("taskTypeFromInfo = %v, want video", got)
 	}
 
-	// 走完整 applyLeafInfo：从 video 起始状态应变成 homework 且有截止时间
-	start := domain.Task{
-		ID:     "ykt:23175789:45030169",
-		Type:   domain.TaskVideo,
-		Title:  "作业1单元",
-		Status: domain.StatusUnknown,
-		Source: "chapter:leaf_type=7",
+	leaf := candidateLeaf{
+		classroom: "80000004",
+		leafID:    "80000013",
+		chapterID: "80000003",
+		title:     "作业1单元",
+		leafType:  7,
+		deadline:  d.ScoreDeadline.Unix(),
 	}
+	start := toTask(leaf, testBase)
 	got := applyLeafInfo(start, d)
 	t.Logf("after applyLeafInfo: type=%v deadline=%v", got.Type, got.Deadline)
-	if got.Type != domain.TaskHomework {
-		t.Errorf("类型应提升为 homework，实际 %v", got.Type)
+	if got.Type != domain.TaskVideo {
+		t.Errorf("课件应保持 video，实际 %v", got.Type)
 	}
-	if got.Deadline.IsZero() {
-		t.Error("截止时间应被写入")
+	if got.HasDeadline() {
+		t.Errorf("阅读材料不应保留考核截止时间，实际 %v", got.Deadline)
+	}
+	got.URL = leafURLWithLabel(testBase, leaf, d.ContentLabel())
+	wantURL := testBase + "/ai-workspace/lms-graph/80000004/video/80000013?is_chapter=1"
+	if got.URL != wantURL {
+		t.Errorf("课件 URL = %q, want %q", got.URL, wantURL)
 	}
 }

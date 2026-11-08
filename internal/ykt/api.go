@@ -410,6 +410,8 @@ func (c *Client) fetchCourse(ctx context.Context, course CourseItem, detailDays 
 		// 即使标题撞上日志条目也必须留在章节路由里，否则会生成打不开的链接。
 		if cwIndex != nil && isPaperLeaf(leaf.leafType) {
 			if cw, ok := cwIndex.lookup(task.Title); ok {
+				task.Score = cw.score.Ptr()
+				task.TotalScore = cw.totalScore.Ptr()
 				if u := cw.webURL(baseURL, classroomID); u != "" {
 					task.URL = u
 					stats.LinksFromLogs++

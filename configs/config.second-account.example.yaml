@@ -14,7 +14,7 @@
 # 注意：不要把真实凭据写进本文件，用环境变量注入：
 #   YKT_FEISHU_WEBHOOK / YKT_FEISHU_SECRET / YKT_EMAIL_PASSWORD
 
-data_dir: ""   # 必须改成独立目录，例如 C:/Users/you/AppData/Roaming/rainclass-reminder-2/data
+data_dir: ""   # 必须改成独立目录，例如 %LOCALAPPDATA%/rainclass-reminder-2/data
 
 poll:
   interval: 10m
@@ -105,4 +105,4 @@ web_ui:
 
 log:
   level: info
-  file: ""   # 建议填独立文件，例如 C:/Users/you/AppData/Roaming/rainclass-reminder-2/app.log
+  file: ""   # 建议填独立文件，例如 %LOCALAPPDATA%/rainclass-reminder-2/app.log

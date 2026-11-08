@@ -9,10 +9,7 @@ import (
 	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/ykt"
 )
 
-// YktSource 把 ykt.Client 适配为调度器需要的 Fetcher。
-//
-// 这层适配的价值：scheduler 不依赖 ykt 包，测试时可替换为假数据源；
-// 同时把"登录失效"这一 ykt 特有错误转换为调度器可识别的语义。
+// 适配器集中处理 ykt 的登录失效语义，调度核心仍可通过 Fetcher 替换数据源。
 type YktSource struct {
 	Client     *ykt.Client
 	DetailDays int

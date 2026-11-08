@@ -1,10 +1,11 @@
 # 雨课堂 API 笔记
 
-> 本文记录本工具实际使用的接口。**只包含只读 GET 接口**。
+> 业务抓取仅使用只读 GET 接口；微信登录流程单列于第 6 节，不涉及作业提交。
 >
 > **重要**：以下结构基于 2026-11 真实账号验证（33 门课程、363 个叶子）。
 > 公开资料里的字段名（`data.chapters`、`leaf_id`）与本实例实际不符，
 > 请以本文为准；接口变更时用 `rainclass-reminder probe` 重新取证。
+> 文中的姓名与关联 ID 使用示例值，不能用于访问真实课程。
 
 ---
 
@@ -50,11 +51,11 @@ GET /v2/api/web/courses/list?identity=2
   "data": {
     "list": [
       {
-        "classroom_id": 26804510,
+        "classroom_id": 80000009,
         "name": "2026“AI+信息素养”大赛",
         "short_name": null,
         "students_count": 82,
-        "teacher": {"user_id": 1470464, "name": "周建芳"},
+        "teacher": {"user_id": 10001, "name": "示例教师"},
         "role": 5,
         "course": {"name": "..."}
       }
@@ -82,23 +83,23 @@ Header: xtbz: ykt
 ```json
 {
   "data": {
-    "course_id": 3427311,
+    "course_id": 7000005,
     "course_name": "2026“AI+信息素养”大赛",
     "course_chapter": [
       {
-        "id": 6516468,
+        "id": 7000009,
         "name": "未分类教学活动",
         "order": -1,
         "section_leaf_list": [
           {
-            "id": 49195196,
-            "leafinfo_id": 49197417,
+            "id": 80000025,
+            "leafinfo_id": 80000026,
             "leaf_type": 5,
             "name": "模拟题一",
             "start_time": 1790070110000,
             "end_time": 0,
             "score_deadline": 1821628799000,
-            "chapter_id": 6516468,
+            "chapter_id": 7000009,
             "is_show": true,
             "is_locked": false,
             "is_score": true,
@@ -120,7 +121,9 @@ Header: xtbz: ykt
 | 叶子 ID | `leaf_id` | `id`（+ 独立的 `leafinfo_id`） |
 | 课程名 | `data.course_info.name` | `data.course_name` |
 
-**`id` vs `leafinfo_id` 必须区分**：`id` 用于唯一标识任务，`leafinfo_id` 才是详情接口需要传的参数。混用会导致详情 404。
+**`id` vs `leafinfo_id` 必须区分**：网页路由和详情接口都传章节树节点 `id`。
+`leafinfo_id` 仅保留用于排障，不能传给详情接口，否则会返回对象不存在。
+章节树可能另有 `section_leaf_list[].leaf_list[]` 一层；非空容器应下钻收集实际叶子。
 
 ### leaf_type 实测分布（363 个叶子）
 
@@ -136,11 +139,12 @@ Header: xtbz: ykt
 | 9 | 38 | 随堂测验/练习题 | `homework` |
 | 无 | 30 | 视频小节 | `video` |
 
-### 关键：名称关键词优先于 leaf_type
+### 关键：服务端标签优先，名称与 leaf_type 用于兜底
 
 实测同一门课里 `leaf_type=6` 既可能是「作业-第1章」也可能是「讨论-导论」，
-而 `leaf_type=7` 有「期中2026」这种考试。**只看数字必然误判**，
-因此 `classify()` 按标题关键词优先判定：
+而 `leaf_type=7` 有标题为「期中2026」的节点。**只看数字必然误判**，
+有详情时，业务类型以 `taskTypeFromInfo()` 读取的服务端标签为准；
+没有详情时，`classify()` 按标题关键词判定：
 
 | 关键词 | 判定 |
 |---|---|
@@ -149,6 +153,11 @@ Header: xtbz: ykt
 | 作业、习题、练习、测验、测试、模拟题、单元 | `homework` |
 | 视频、课件、课程简介 | `video` |
 | 无关键词 | 回退 `leaf_type` |
+
+业务类型与网页路由独立判定。「雨课堂课件」按服务端标签归为 `video`，
+不因 `is_assessed` 与 `score_deadline` 同时存在就提升为作业。
+2026-11-08 检查两个课堂的四个已过期课件，均为学习完成度阅读器，未见提交入口，
+因此回退此前缺少证据的提升规则。样本不覆盖有效期内的全部形态。
 
 ### 关键：视频类的 `score_deadline` 是课程结束时间
 
@@ -160,10 +169,10 @@ Header: xtbz: ykt
 
 ---
 
-## 4. 叶子详情（补全标题与完成状态）
+## 4. 叶子详情（补全标题、截止时间与内容标签）
 
 ```
-GET /mooc-api/v1/lms/learn/leaf_info/{cid}/{leafinfo_id}/
+GET /mooc-api/v1/lms/learn/leaf_info/{cid}/{id}/
 Header: xtbz: ykt, classroom-id: {cid}
 ```
 
@@ -171,12 +180,31 @@ Header: xtbz: ykt, classroom-id: {cid}
 
 | 字段 | 说明 |
 |---|---|
-| `title` / `name` | 标题（可能比章节树更完整） |
+| `name` | 标题（可能比章节树更完整） |
 | `score_deadline` | 截止时间 |
 | `publish_time` | 发布时间 |
 | `class_start_time` / `class_end_time` | 课堂起止 |
-| `is_finish` | `1` = 已完成 |
-| `status` / `score_status` | 状态字符串 |
+| `is_locked` / `is_deleted` / `force_reason` | 可见性与访问限制 |
+| `is_assessed` | 是否计分 |
+| `content_info.score_evaluation.name` | 服务端内容标签，用于独立判定业务类型和路由 |
+
+`score_deadline` 可能是带小数的毫秒时间戳（如 `1778428740000.0`），不能只用整数解析。
+`class_end_time` 不作为作业截止时间的兜底。实测详情没有 `is_finish`、`status` 或 `score_status`；
+完成状态来自学习日志。
+
+### 学习日志（完成状态与试卷 ID）
+
+```
+GET /v2/api/web/logs/learn/{cid}?actype=-1&page=0&offset=20&sort=-1
+```
+
+`data.activities[]` 的 `status=3` 表示已完成，`0/1` 表示未完成；字段缺失与零值必须区分。
+`type=4/5` 的 `courseware_id` 分别用于习题成绩页与考试页，按归一化标题关联章节任务。
+它不是章节树节点 `id`，也不是 `leafinfo_id`。
+
+`score` / `total_score` 可为数字、数字字符串或 null；零分与缺失不同，小数不截断。
+非法或非有限数值按缺失处理。分数只展示，不参与完成状态判定。
+沿用试卷日志索引的匹配范围与 6 小时缓存，未匹配到的章节任务不猜测成绩。
 
 调用策略：只对 `detail_lookahead_days`（默认 7）天内到期的叶子调用。
 实测 363 个叶子中拉取 279 个、跳过 84 个，0 错误。
@@ -235,6 +263,6 @@ Header: xtbz: ykt
 ## 已知限制
 
 - **讨论与课堂**没有独立的截止时间字段；课堂用 `start_time` 做开课提醒
-- 视频/课件虽有 `score_deadline` 但是课程结束时间，**刻意不提醒**
+- 视频与课件不参与截止提醒；计分和考核截止不能单独证明存在作业提交入口
 - 16/33 门课程 `course_chapter` 为空（历史课/未发布），属正常
 - 考试域 cookie 与主站不互通，本工具不进入考试域（提醒不需要）

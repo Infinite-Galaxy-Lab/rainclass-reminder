@@ -14,8 +14,8 @@ import (
 // leafTypeMap 是业务类型的兜底表，仅在服务端标签与标题关键词都无命中时使用。
 //
 // 业务类型与路由（chapterSegment）是两件独立的事：前者影响展示与提醒策略，
-// 后者决定页面挂在哪个组件下。leaf_type=7 的「期中2026」业务上是考试，
-// 但服务端标签是"雨课堂课件"，只能走 video 路由。
+// 后者决定页面挂在哪个组件下。leaf_type=7 即使标题含作业/考试字样，
+// 服务端标签为"雨课堂课件"时仍按阅读材料处理，并走 video 路由。
 //
 // 数字与服务端 content_info.score_evaluation.name 的对应关系来自逐条比对：
 // 0 视频、3 图文、4 讨论、5 作业/考试、7 雨课堂课件、8 课堂、9 考试。
@@ -128,25 +128,9 @@ func taskTypeFromLabel(label string) domain.TaskType {
 	return domain.TaskOther
 }
 
-// taskTypeFromInfo 综合服务端标签与计分字段判定业务类型。
-//
-// 「雨课堂课件」不能单独决定类型：leaf_type=7 里既有纯阅读材料，也有
-// is_assessed=true 且 score_deadline 有值、占成绩 5% 的计分任务
-// （「作业1单元」「期中2026」）。一律当 TaskVideo 会让它们不参与提醒。
-// is_assessed && score_deadline > 0 这个组合只在 5/7/9 出现，
-// 从不出现于 0/3/8，是"是否计分任务"的可靠判据。
+// 计分/考核截止不等于提交任务，课件按阅读材料处理。
 func taskTypeFromInfo(d LeafInfoData) domain.TaskType {
-	label := d.ContentLabel()
-	assessedWithDeadline := d.IsAssessed.Bool() && d.ScoreDeadline.Unix() > 0
-
-	switch strings.TrimSpace(label) {
-	case "雨课堂课件":
-		if assessedWithDeadline {
-			return domain.TaskHomework
-		}
-		return domain.TaskVideo
-	}
-	return taskTypeFromLabel(label)
+	return taskTypeFromLabel(d.ContentLabel())
 }
 
 // chapterSegmentByContent 返回章节路由的路径段。
@@ -463,9 +447,8 @@ func taskURLByKind(baseURL, classroomID, leafID, chapterID, coursewareID, segmen
 
 // isPureContentLeaf 判断该叶子是否为纯内容类（无需拉详情）。
 //
-// 只有 3 图文与 8 课堂录像从不出现计分组合（is_assessed && score_deadline>0）。
-// 0 视频虽然多是内容，但有部分是计分任务，因此不能整类跳过。
-// 判据用 leaf_type 而非 classify，后者按标题猜会把计分课件判错。
+// 只有 3 图文与 8 课堂录像从不出现计分/考核字段。0 视频虽多是内容，
+// 但部分节点仍带这些字段，需要拉详情补标题和权威标签，不能整类跳过。
 func isPureContentLeaf(leaf candidateLeaf) bool {
 	switch leaf.leafType {
 	case 3, 8:
@@ -509,6 +492,8 @@ type coursewareRef struct {
 	kind         int64 // LearnLogQuiz / LearnLogExam
 	status       int64 // 完成状态编码，语义见 learnLogStatus
 	statusKnown  bool  // 响应里确实带了 status 字段
+	score        OptFloat
+	totalScore   OptFloat
 }
 
 // learnLogStatus 把学习日志的 status 编码翻译为完成状态。
@@ -571,6 +556,8 @@ func (c *Client) buildCoursewareIndex(ctx context.Context, classroomID string, s
 			kind:         kind,
 			status:       a.Status.Int64(),
 			statusKnown:  hasStatus,
+			score:        a.Score,
+			totalScore:   a.TotalScore,
 		}
 	}
 	if len(idx.byTitle) == 0 {
@@ -633,8 +620,7 @@ func applyLeafInfo(t domain.Task, d LeafInfoData) domain.Task {
 	if title := strings.TrimSpace(d.Title.String()); title != "" {
 		t.Title = title
 	}
-	// 服务端标签是权威类型，比标题关键词可靠。计分课件再由
-	// is_assessed + score_deadline 提升为作业。
+	// 服务端标签是权威类型，比标题关键词可靠。
 	if label := d.ContentLabel(); label != "" {
 		t.Type = taskTypeFromInfo(d)
 	} else if t.Title != "" {
@@ -650,6 +636,9 @@ func applyLeafInfo(t domain.Task, d LeafInfoData) domain.Task {
 		if sec := d.ScoreDeadline.Unix(); sec != 0 {
 			t.Deadline = timeOrZero(sec)
 		}
+	} else {
+		// 详情标签可能把按标题猜出的作业纠正为阅读材料，旧的截止值必须清掉。
+		t.Deadline = time.Time{}
 	}
 
 	if sec := d.ClassStartTime.Unix(); sec != 0 && t.StartAt.IsZero() {

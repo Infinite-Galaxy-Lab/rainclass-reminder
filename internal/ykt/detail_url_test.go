@@ -12,8 +12,8 @@ import (
 //
 // 背景：URL 在两条路径上生成——toTask（首次）和详情回填后（第二次）。
 // 早期只有前者用 node id，后者用了 leafinfo_id，于是"修好了看起来还是错"。
-// 实测现场：《第三章习题》node_id=48057249、leafinfo_id=48059470，
-// 用户点到的页面是 quiz/48059470 →「此内容已被老师删除」。
+// 脱敏复现：《第三章习题》node_id=80000023、leafinfo_id=80000024，
+// 用户点到的页面是 quiz/80000024 →「此内容已被老师删除」。
 //
 // 后续（v0.6.6）：发现详情接口 **本身** 也要用 node id，于是同一个
 // 混用错误在两条路径上各犯了一次。本测试同时锁定两处：
@@ -24,9 +24,9 @@ import (
 // 否则测试会假通过（和之前 cookie jar 那次一样的坑）。
 func TestDetailRefillKeepsNodeID(t *testing.T) {
 	const (
-		nodeID     = "48057249"
-		leafInfoID = "48059470"
-		classroom  = "25570088"
+		nodeID     = "80000023"
+		leafInfoID = "80000024"
+		classroom  = "80000008"
 	)
 
 	mux := http.NewServeMux()
@@ -36,7 +36,7 @@ func TestDetailRefillKeepsNodeID(t *testing.T) {
 	// 章节树：id 与 leafinfo_id 是两个不同字段（实测结构）。
 	mux.HandleFunc("/mooc-api/v1/lms/learn/course/chapter", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"success":true,"errcode":0,"data":{"course_chapter":[{
-		  "id": 6516468, "name": "第三章",
+		  "id": 7000009, "name": "第三章",
 		  "section_leaf_list": [{
 		    "id": ` + nodeID + `, "leafinfo_id": ` + leafInfoID + `,
 		    "leaf_type": 5, "name": "《第三章习题》",

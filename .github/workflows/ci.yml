@@ -38,6 +38,16 @@ jobs:
       - run: go vet ./...
       - run: go test ./...
 
+  panel:
+    name: panel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test internal/webui/task-view.test.mjs
+
   build:
     name: build · ${{ matrix.goos }}/${{ matrix.goarch }}
     runs-on: ubuntu-latest

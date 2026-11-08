@@ -12,21 +12,21 @@ import (
 // 路由模板来自对真实网页端的确认（2026-11）。证据是用户提供的、
 // 可正常打开的页面：
 //
-//	/ai-workspace/lms-graph/25570088/quiz/48057249?is_chapter=1
+//	/ai-workspace/lms-graph/80000008/quiz/80000023?is_chapter=1
 //
-// 其中 25570088 是 classroom_id，《第三章习题》的 node_id 是 48057249，
-// 而它的 leafinfo_id 是 48059470 —— 证明路由要的是 **node id**。
+// 其中 80000008 是 classroom_id，《第三章习题》的 node_id 是 80000023，
+// 而它的 leafinfo_id 是 80000024 —— 证明路由要的是 **node id**。
 // 任何一条规则被改动，这里应当先失败，避免退回"全部跳首页"或
 // "打开提示内容已被删除"的老问题。全部为纯函数测试，不依赖网络。
 
 func TestWebTaskURL(t *testing.T) {
 	const base = "https://changjiang.yuketang.cn"
 
-	// 用户提供的真实样例，用于断言"和真实 URL 完全一致"。
+	// 用户提供的脱敏样例，用于断言"和真实 URL 完全一致"。
 	const (
-		realClassroom = "25570088"
-		realNodeID    = "48057249"
-		realURL       = base + "/ai-workspace/lms-graph/25570088/quiz/48057249?is_chapter=1"
+		sampleClassroom = "80000008"
+		sampleNodeID    = "80000023"
+		sampleURL       = base + "/ai-workspace/lms-graph/80000008/quiz/80000023?is_chapter=1"
 	)
 
 	cases := []struct {
@@ -40,79 +40,79 @@ func TestWebTaskURL(t *testing.T) {
 	}{
 		{
 			name:        "作业走 ai-workspace quiz 路由（与真实页面一致）",
-			classroomID: realClassroom,
-			leafID:      realNodeID,
+			classroomID: sampleClassroom,
+			leafID:      sampleNodeID,
 			typ:         domain.TaskHomework,
-			want:        realURL,
+			want:        sampleURL,
 		},
 		{
 			name:        "考试有 exam_id 时走老版 exam 页（不是 ai-workspace）",
-			classroomID: realClassroom,
-			leafID:      realNodeID,
+			classroomID: sampleClassroom,
+			leafID:      sampleNodeID,
 			typ:         domain.TaskExam,
-			examID:      "2051258",
-			want:        base + "/v2/web/exam/25570088/2051258",
+			examID:      "7000003",
+			want:        base + "/v2/web/exam/80000008/7000003",
 		},
 		{
 			name:        "考试缺 exam_id 时退回章节路由（至少能看上下文）",
-			classroomID: realClassroom,
-			leafID:      realNodeID,
+			classroomID: sampleClassroom,
+			leafID:      sampleNodeID,
 			typ:         domain.TaskExam,
-			want:        realURL,
+			want:        sampleURL,
 		},
 		{
-			// 用户提供的真实链接（2026-11-08 确认可打开）：
-			// /ai-workspace/lms-graph/25570088/forum/48057205?is_chapter=1&node_id=6338135
-			// 其中 48057205 是叶子 id、6338135 是该叶子的 chapter_id。
-			name:        "讨论带 chapter_id 时补齐 node_id 参数（真实链接逐字一致）",
-			classroomID: realClassroom,
-			leafID:      "48057205",
+			// 用户提供的脱敏链接示例（2026-11-08 确认可打开）：
+			// /ai-workspace/lms-graph/80000008/forum/80000022?is_chapter=1&node_id=7000008
+			// 其中 80000022 是叶子 id、7000008 是该叶子的 chapter_id。
+			name:        "讨论带 chapter_id 时补齐 node_id 参数（脱敏链接示例结构一致）",
+			classroomID: sampleClassroom,
+			leafID:      "80000022",
 			typ:         domain.TaskDiscuss,
-			chapterID:   "6338135",
-			want:        base + "/ai-workspace/lms-graph/25570088/forum/48057205?is_chapter=1&node_id=6338135",
+			chapterID:   "7000008",
+			want:        base + "/ai-workspace/lms-graph/80000008/forum/80000022?is_chapter=1&node_id=7000008",
 		},
 		{
 			name:        "讨论缺 chapter_id 时仍能打开（只是内容区可能为空）",
-			classroomID: realClassroom,
-			leafID:      realNodeID,
+			classroomID: sampleClassroom,
+			leafID:      sampleNodeID,
 			typ:         domain.TaskDiscuss,
-			want:        base + "/ai-workspace/lms-graph/25570088/forum/48057249?is_chapter=1",
+			want:        base + "/ai-workspace/lms-graph/80000008/forum/80000023?is_chapter=1",
 		},
 		{
 			name:        "视频走 video 路由",
-			classroomID: realClassroom,
-			leafID:      realNodeID,
+			classroomID: sampleClassroom,
+			leafID:      sampleNodeID,
 			typ:         domain.TaskVideo,
-			want:        base + "/ai-workspace/lms-graph/25570088/video/48057249?is_chapter=1",
+			want:        base + "/ai-workspace/lms-graph/80000008/video/80000023?is_chapter=1",
 		},
 		{
 			name:        "未知类型落通用 node 页（仍有内容可看）",
-			classroomID: realClassroom,
-			leafID:      realNodeID,
+			classroomID: sampleClassroom,
+			leafID:      sampleNodeID,
 			typ:         domain.TaskClass,
-			want:        base + "/ai-workspace/lms-graph/25570088/node/48057249?is_chapter=1",
+			want:        base + "/ai-workspace/lms-graph/80000008/node/80000023?is_chapter=1",
 		},
 		{
 			name:        "缺 classroom 退回首页",
 			classroomID: "",
-			leafID:      realNodeID,
+			leafID:      sampleNodeID,
 			typ:         domain.TaskHomework,
 			want:        base + "/v2/web/index",
 		},
 		{
 			name:        "缺 leaf 且非考试退回首页",
-			classroomID: realClassroom,
+			classroomID: sampleClassroom,
 			leafID:      "",
 			typ:         domain.TaskDiscuss,
 			want:        base + "/v2/web/index",
 		},
 		{
 			name:        "缺 leaf 但考试有 exam_id 时仍能拼出链接",
-			classroomID: realClassroom,
+			classroomID: sampleClassroom,
 			leafID:      "",
 			typ:         domain.TaskExam,
 			examID:      "90001",
-			want:        base + "/v2/web/exam/25570088/90001",
+			want:        base + "/v2/web/exam/80000008/90001",
 		},
 	}
 
@@ -131,30 +131,30 @@ func TestWebTaskURL(t *testing.T) {
 
 // TestTaskURLUsesNodeIDNotLeafInfoID 是这次 bug 的核心回归测试。
 //
-// 真实数据：《第三章习题》node_id=48057249、leafinfo_id=48059470。
+// 脱敏样例：《第三章习题》node_id=80000023、leafinfo_id=80000024。
 // 用 leafinfo_id 会打开「此内容已被老师删除」，必须用 node id。
 func TestTaskURLUsesNodeIDNotLeafInfoID(t *testing.T) {
 	const base = "https://changjiang.yuketang.cn"
 
 	c := candidateLeaf{
 		course:     "概率论与数理统计",
-		classroom:  "25570088",
-		leafID:     "48057249", // node id
-		leafInfoID: "48059470", // leafinfo_id，绝不能出现在 URL 里
+		classroom:  "80000008",
+		leafID:     "80000023", // node id
+		leafInfoID: "80000024", // leafinfo_id，绝不能出现在 URL 里
 		title:      "《第三章习题》",
 		leafType:   5,
 	}
 
 	task := toTask(c, base)
-	want := base + "/ai-workspace/lms-graph/25570088/quiz/48057249?is_chapter=1"
+	want := base + "/ai-workspace/lms-graph/80000008/quiz/80000023?is_chapter=1"
 	if task.URL != want {
 		t.Errorf("URL = %q\nwant %q", task.URL, want)
 	}
-	if strings.Contains(task.URL, "48059470") {
+	if strings.Contains(task.URL, "80000024") {
 		t.Errorf("URL 里不能出现 leafinfo_id（会打开“内容已被老师删除”）：%q", task.URL)
 	}
 	// 任务 ID 仍应基于 node id，保证跨轮次稳定。
-	if task.ID != "ykt:25570088:48057249" {
+	if task.ID != "ykt:80000008:80000023" {
 		t.Errorf("任务 ID 应基于 node id，实际 %q", task.ID)
 	}
 }
@@ -174,7 +174,7 @@ func TestToTaskURLByType(t *testing.T) {
 	}{
 		{
 			// leaf_type=4 是讨论，标题里的"作业"不能改写它。
-			// 用户提供的真实链接：/forum/48057205?is_chapter=1&node_id=6338135
+			// 用户提供的脱敏链接示例：/forum/80000022?is_chapter=1&node_id=7000008
 			name: "讨论叶子带 chapter_id（node_id 参数来自 chapter_id）",
 			leaf: candidateLeaf{
 				classroom: "C1", leafID: "L4", leafInfoID: "X4",
@@ -249,7 +249,7 @@ func TestToTaskURLByType(t *testing.T) {
 //
 // 考试必须落到老版 /v2/web/exam/{cid}/{exam_id}，不能用 ai-workspace 的
 // quiz 路由——后者只能定位到章节位置，打不开试卷本身。
-// 真实链接：/v2/web/exam/24984528/2051258
+// 脱敏链接示例：/v2/web/exam/80000006/7000003
 func TestExamToTaskURL(t *testing.T) {
 	const base = "https://changjiang.yuketang.cn"
 
