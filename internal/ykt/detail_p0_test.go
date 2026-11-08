@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/2963609262/ykt-reminder/internal/domain"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/domain"
 )
 
 // 本文件锁定 v0.6.6 修的四个 P0 bug（#25 / #26）。全部离线纯函数或

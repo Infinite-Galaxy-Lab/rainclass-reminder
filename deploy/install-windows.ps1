@@ -8,7 +8,7 @@
 
 param(
     [string]$BinaryPath = "",
-    [string]$TaskName = "YktReminder",
+    [string]$TaskName = "RainClassReminder",
     [switch]$Uninstall
 )
 
@@ -22,7 +22,7 @@ if ($Uninstall) {
     } else {
         Write-Host "未找到计划任务 $TaskName"
     }
-    $launcher = Join-Path $env:APPDATA "ykt-reminder\launch-hidden.vbs"
+    $launcher = Join-Path $env:APPDATA "rainclass-reminder\launch-hidden.vbs"
     if (Test-Path $launcher) {
         Remove-Item $launcher -Force
         Write-Host "已移除隐藏启动器 $launcher"
@@ -30,10 +30,10 @@ if ($Uninstall) {
     return
 }
 
-# 未指定时，默认使用脚本上一级目录里的 ykt-reminder.exe
+# 未指定时，默认使用脚本上一级目录里的 rainclass-reminder.exe
 if (-not $BinaryPath) {
     $root = Split-Path -Parent $PSScriptRoot
-    $BinaryPath = Join-Path $root "ykt-reminder.exe"
+    $BinaryPath = Join-Path $root "rainclass-reminder.exe"
 }
 
 if (-not (Test-Path $BinaryPath)) {
@@ -45,11 +45,10 @@ Write-Host "可执行文件：$BinaryPath"
 
 # 生成隐藏启动器。
 #
-# 为什么需要：Go 编译的是控制台程序，由计划任务直接执行时会弹出一个黑窗口。
-# Windows 计划任务没有"隐藏控制台"的开关（只有"不管用户是否登录"才隐藏，
-# 但那样拿不到交互式桌面会话，桌面通知就发不出去）。
-# 因此用 WScript 以窗口模式 0（完全隐藏）拉起子进程，这是可行且无依赖的做法。
-$launcher = Join-Path $env:APPDATA "ykt-reminder\launch-hidden.vbs"
+# Go 编译的是控制台程序，由计划任务直接执行会弹出黑窗口。计划任务没有
+# "隐藏控制台"开关（只有"不管用户是否登录"才隐藏，但那样拿不到交互式
+# 桌面会话，桌面通知就发不出去），因此用 WScript 以窗口模式 0 拉起子进程。
+$launcher = Join-Path $env:APPDATA "rainclass-reminder\launch-hidden.vbs"
 $launcherDir = Split-Path -Parent $launcher
 if (-not (Test-Path $launcherDir)) {
     New-Item -ItemType Directory -Path $launcherDir -Force | Out-Null

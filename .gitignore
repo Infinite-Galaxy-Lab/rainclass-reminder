@@ -1,5 +1,7 @@
 # 编译产物
 /dist/
+/rainclass-reminder.exe
+/rainclass-reminder
 /ykt-reminder.exe
 /ykt-reminder
 *.exe~

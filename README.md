@@ -1,44 +1,56 @@
-<div align="center">
+<p align="center">
+  <img src="docs/assets/icon.png" width="128" alt="RainClass Reminder">
+</p>
 
-# ykt-reminder
-
-**长江雨课堂 · 截止提醒助手**
-
-只读守护进程：定时拉取作业 / 考试 / 讨论 / 课堂任务，在截止前通过飞书推到手机。
-
-<sub>Go 1.23 · 零 cgo · 单文件二进制 · Windows / Linux / macOS</sub>
-
-</div>
+<h1 align="center">RainClass Reminder</h1>
 
 ---
 
-雨课堂只在打开 App 或网页时展示任务，没有"截止前主动推送"。课程一多，漏交作业、错过考试就成了常态。这个工具补上这一环：一个常驻后台的只读进程，按你设定的时间窗把即将到期的任务推出来。
+<p align="center">
+  <b>长江雨课堂的截止提醒助手 · 把作业和考试推到手机上</b><br>
+  只读守护进程 · 多通道推送 · 本地 Web 面板 · 纯 Go 单文件部署<br>
+  桌面端先行，移动端 App 发行版在计划中
+</p>
 
-不做 App、不做插件、不做自动化答题。只读，是它的第一设计约束。
+<p align="center">
+  <img src="https://img.shields.io/badge/Go-1.23-00ADD8?style=flat-square&labelColor=1f2328&logo=go&logoColor=white" alt="Go">
+  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-4c8bf5?style=flat-square&labelColor=1f2328" alt="Platform">
+  <img src="https://img.shields.io/badge/Deploy-Single%20Binary%20%7C%20Docker-2ea44f?style=flat-square&labelColor=1f2328" alt="Deploy">
+  <img src="https://img.shields.io/badge/Notify-Feishu%20%7C%20Webhook%20%7C%20Email-e36209?style=flat-square&labelColor=1f2328" alt="Notify">
+  <img src="https://img.shields.io/badge/License-MIT-d4a72c?style=flat-square&labelColor=1f2328" alt="License">
+</p>
+
+## 为什么
+
+雨课堂（Rain Classroom）只在打开 App 或网页时展示任务，没有「截止前主动推送」。课程一多，漏交作业、错过考试就成了常态。
+
+RainClass Reminder 补上这一环：一个常驻后台的只读进程，按你设定的时间窗把即将到期的任务推出来。
+
+只读是它的第一设计约束——不提交、不答题、不交卷，全部请求为 GET。
 
 ## 特性
 
 | | |
 |---|---|
-| **只读** | 全部请求为 GET。不提交、不答题、不交卷、不改服务端状态 |
+| **只读** | 全部请求为 GET，不提交、不答题、不交卷、不改服务端状态 |
 | **多通道推送** | 飞书群机器人 / 桌面通知 / 通用 Webhook（Bark、Server酱、企微、钉钉、TG）/ SMTP 邮件 |
 | **多级提醒** | 默认截止前 1 天、6 小时、1 小时、15 分钟各一次；课堂类额外提前 10 分钟开课提醒 |
 | **改期自动重算** | 去重键包含截止时间，老师改期即重新计时 |
 | **断网不轰炸** | 多个窗口同时错过时只补发最紧急的一条 |
 | **静默时段** | 23:00–07:00 内，1 小时以上的提醒顺延到 07:30；15 分钟内的照发 |
 | **本地 Web 面板** | 任务倒计时、微信扫码登录、推送历史，默认只监听 `127.0.0.1` |
-| **单文件部署** | 纯 Go 静态链接，约 10 MB，常驻内存 25–35 MB，空闲 CPU ≈ 0% |
+| **单文件部署** | 纯 Go 静态链接，约 13 MB，常驻内存 25–35 MB，空闲 CPU ≈ 0% |
 
 ## 快速开始
 
 ### 1. 编译
 
 ```bash
-git clone https://github.com/2963609262/ykt-reminder.git
-cd ykt-reminder
+git clone https://github.com/infinite-galaxy/rainclass-reminder.git
+cd rainclass-reminder
 
-go build -o ykt-reminder ./cmd/ykt-reminder   # 仅本机
-bash deploy/build.sh                          # 六个平台交叉编译，产物在 dist/
+go build -o rainclass-reminder ./cmd/rainclass-reminder   # 仅本机
+bash deploy/build.sh                                      # 六个平台交叉编译
 ```
 
 需要 Go 1.23 或更高。
@@ -48,7 +60,7 @@ bash deploy/build.sh                          # 六个平台交叉编译，产�
 **微信扫码**（推荐，无需手动复制 cookie）：
 
 ```bash
-./ykt-reminder auth login
+./rainclass-reminder auth login
 ```
 
 终端会打印二维码，微信扫码即可。登录态存到 `<数据目录>/cookie.json`，权限 0600。
@@ -58,12 +70,12 @@ bash deploy/build.sh                          # 六个平台交叉编译，产�
 浏览器登录 <https://changjiang.yuketang.cn>，按 F12 → Application → Cookies，复制 `sessionid` 与 `csrftoken`：
 
 ```bash
-./ykt-reminder auth import --cookie "sessionid=xxx; csrftoken=yyy"
+./rainclass-reminder auth import --cookie "sessionid=xxx; csrftoken=yyy"
 ```
 
 ### 3. 配置推送
 
-以飞书为例：在飞书建一个只拉自己的群，群设置 → 群机器人 → 添加机器人 → **自定义机器人**，复制生成的 Webhook 地址。
+以飞书为例：建一个只拉自己的群，群设置 → 群机器人 → 添加机器人 → **自定义机器人**，复制 Webhook 地址。
 
 ```bash
 export YKT_FEISHU_WEBHOOK="https://open.feishu.cn/open-apis/bot/v2/hook/xxx"
@@ -72,20 +84,20 @@ export YKT_FEISHU_SECRET="若开启了签名校验才需要"
 
 > 不要在机器人上启用 IP 白名单或关键词限制，否则请求会被拦截。
 
-凭据优先从环境变量读取。也可以写入配置文件（Windows `%AppData%\ykt-reminder\config.yaml`，Linux/macOS `~/.config/ykt-reminder/config.yaml`）。全部配置项见 [`configs/config.example.yaml`](configs/config.example.yaml)，其它通道的接入方式见 [docs/CHANNELS.md](docs/CHANNELS.md)。
+凭据优先从环境变量读取。也可写入配置文件（Windows `%AppData%\rainclass-reminder\config.yaml`，Linux/macOS `~/.config/rainclass-reminder/config.yaml`）。全部配置项见 [`configs/config.example.yaml`](configs/config.example.yaml)，其它通道见 [docs/CHANNELS.md](docs/CHANNELS.md)。
 
 ### 4. 验证
 
 ```bash
-./ykt-reminder tasks          # 打印任务列表，可与网页端逐条核对
-./ykt-reminder notify test    # 手机应收到一张测试卡片
-./ykt-reminder run --dry-run  # 跑一轮，只打印将要发送的内容
+./rainclass-reminder tasks          # 打印任务列表，可与网页端逐条核对
+./rainclass-reminder notify test    # 手机应收到一张测试卡片
+./rainclass-reminder run --dry-run  # 跑一轮，只打印将要发送的内容
 ```
 
 ### 5. 常驻运行
 
 ```bash
-./ykt-reminder run
+./rainclass-reminder run
 ```
 
 启动后同时开一个本地面板：<http://127.0.0.1:8787>
@@ -102,9 +114,9 @@ powershell -ExecutionPolicy Bypass -File deploy\install-windows.ps1
 **Linux**（systemd）：
 
 ```bash
-sudo cp deploy/ykt-reminder.service /etc/systemd/system/
+sudo cp deploy/rainclass-reminder.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now ykt-reminder
+sudo systemctl enable --now rainclass-reminder
 ```
 
 **Docker**：
@@ -150,17 +162,17 @@ cd deploy && docker compose up -d
 ## 架构
 
 ```
-cmd/ykt-reminder        入口
-internal/cli            子命令与依赖装配
-internal/scheduler      编排：抓取 → 决策 → 发送 → 记账
-internal/domain         纯领域层（任务、里程碑、策略），零 I/O
-internal/ykt            唯一知道雨课堂 API 的层（client / dto / mapper）
-internal/notify         推送层（Notifier 接口 + 飞书 / 桌面 / Webhook / 邮件）
-internal/store          持久化（Repository 接口 + SQLite）
-internal/auth           登录态（cookie 导入 / 微信扫码 OAuth）
-internal/netguard       SSRF 地址校验
-internal/qrutil         二维码渲染
-internal/webui          本地面板（embed 静态资源）
+cmd/rainclass-reminder      入口
+internal/cli                子命令与依赖装配
+internal/scheduler          编排：抓取 → 决策 → 发送 → 记账
+internal/domain             纯领域层（任务、里程碑、策略），零 I/O
+internal/ykt                唯一知道雨课堂 API 的层（client / dto / mapper）
+internal/notify             推送层（Notifier 接口 + 飞书 / 桌面 / Webhook / 邮件）
+internal/store              持久化（Repository 接口 + SQLite）
+internal/auth               登录态（cookie 导入 / 微信扫码 OAuth）
+internal/netguard           SSRF 地址校验
+internal/qrutil             二维码渲染
+internal/webui              本地面板（embed 静态资源）
 ```
 
 依赖方向严格单向，`domain` 不 import 任何其它 internal 包。设计取舍与数据流见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
@@ -183,6 +195,7 @@ internal/webui          本地面板（embed 静态资源）
 - [docs/API_NOTES.md](docs/API_NOTES.md) —— 雨课堂接口真实结构
 - [docs/CHANNELS.md](docs/CHANNELS.md) —— 各推送通道的配置方法
 - [docs/EVOLUTION.md](docs/EVOLUTION.md) —— 迭代记录与踩坑归档
+- [docs/BRAND.md](docs/BRAND.md) —— 图标来源与后续视觉方向
 
 ## 开发
 
@@ -192,12 +205,21 @@ go vet ./...
 gofmt -l ./cmd ./internal
 ```
 
-接口字段变更时：先 `ykt-reminder probe` 生成脱敏快照，对照 [docs/API_NOTES.md](docs/API_NOTES.md) 更新 `dto.go` / `mapper.go`，再用真实账号验证。
+接口字段变更时：先 `rainclass-reminder probe` 生成脱敏快照，对照 [docs/API_NOTES.md](docs/API_NOTES.md) 更新 `dto.go` / `mapper.go`，再用真实账号验证。
+
+## 路线图
+
+- [x] 只读抓取与分级提醒
+- [x] 四个推送通道
+- [x] 本地 Web 面板与扫码登录
+- [ ] 移动端 App 发行版（Android / iOS）
+- [ ] 跨课堂同名任务合并
+- [ ] 面板分数展示（`score/total_score`）
 
 ## 常见问题
 
 **cookie 多久失效？**
-不固定，通常数天到数周。失效时程序会发一条飞书告警（只发一次），面板上直接给出二维码。雨课堂不会通 Set-Cookie 续期 `sessionid`，所以过期只能重新登录。
+不固定，通常数天到数周。失效时程序会发一条告警（只发一次），面板上直接给出二维码。雨课堂不会通过 Set-Cookie 续期 `sessionid`，过期只能重新登录。
 
 **能否部署到服务器、登录在本地做？**
 可以。本地跑 `auth login`，把生成的 `cookie.json` 复制到服务器的数据目录即可。
@@ -212,4 +234,4 @@ gofmt -l ./cmd ./internal
 
 [MIT](LICENSE)
 
-本项目与学堂在线、雨课堂官方无关联。请自行评估使用风险。
+图标版权归学堂在线所有，本项目仅作识别用途，后续将替换为自有设计。本项目与学堂在线、雨课堂官方无关联，请自行评估使用风险。

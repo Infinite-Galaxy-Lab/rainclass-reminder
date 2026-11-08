@@ -127,7 +127,7 @@ notify:
 ## 测试
 
 ```bash
-./ykt-reminder notify test
+./rainclass-reminder notify test
 ```
 
 逐个通道发送测试消息并打印结果。加上 `--dry-run` 只渲染内容不实际发送。

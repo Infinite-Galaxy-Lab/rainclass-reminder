@@ -6,29 +6,19 @@ import (
 	"strings"
 	"time"
 
-	"github.com/2963609262/ykt-reminder/internal/domain"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/domain"
 )
 
-// 本文件是 DTO → domain.Task 的唯一转换点。
-// 雨课堂字段的语义知识集中在这里，上层不感知。
+// 本文件是 DTO → domain.Task 的唯一转换点，雨课堂字段的语义都在这里。
 
 // leafTypeMap 是业务类型的兜底表，仅在服务端标签与标题关键词都无命中时使用。
 //
-// 业务类型（本表）与路由（chapterSegment）是两件独立的事：
-// 前者决定显示与提醒策略，后者决定页面挂在哪个组件下。两者不必一致。
-// 例如 leaf_type=7 的「期中2026」业务上是考试（该提醒），
+// 业务类型与路由（chapterSegment）是两件独立的事：前者影响展示与提醒策略，
+// 后者决定页面挂在哪个组件下。leaf_type=7 的「期中2026」业务上是考试，
 // 但服务端标签是"雨课堂课件"，只能走 video 路由。
 //
-// 依据服务端 content_info.score_evaluation.name 逐条比对得出：
-//
-//	leaf_type   服务端标签        样本
-//	0           视频              35
-//	3           图文              31
-//	4           讨论              10
-//	5           作业 / 考试        4
-//	7           雨课堂课件         21
-//	8           课堂              37
-//	9           考试              20
+// 数字与服务端 content_info.score_evaluation.name 的对应关系来自逐条比对：
+// 0 视频、3 图文、4 讨论、5 作业/考试、7 雨课堂课件、8 课堂、9 考试。
 var leafTypeMap = map[int64]domain.TaskType{
 	0: domain.TaskVideo,
 	3: domain.TaskVideo,
@@ -40,14 +30,13 @@ var leafTypeMap = map[int64]domain.TaskType{
 	9: domain.TaskHomework,
 }
 
-// LeafTypeDiscussGroup 是"讨论/小组作业"的 leaf_type。
+// LeafTypeDiscussGroup 是讨论/小组作业的 leaf_type。
 //
 // 单列是因为这类标题常带"作业"二字（如「小组作业——高斯分布的应用」），
-// 走关键词优先会被误判成作业并生成 /quiz 链接，而它在网页端挂在 /forum 下。
+// 走关键词优先会被误判成作业并生成 /quiz 链接，而它实际挂在 /forum 下。
 const LeafTypeDiscussGroup = 4
 
-// 名称关键词规则。顺序有意义：越具体的越靠前。
-// 这些词来自真实课程标题（如"随堂测验2.4"、"小组作业"、"期中2026"）。
+// 关键词按特异性从高到低排列，classify 按此顺序匹配。
 var (
 	examKeywords     = []string{"考试", "期中", "期末", "补考"}
 	discussKeywords  = []string{"讨论", "研讨"}
@@ -55,15 +44,11 @@ var (
 	videoKeywords    = []string{"视频", "课件", "课程简介"}
 )
 
-// classify 结合名称关键词与 leaf_type 判定业务类型。
+// classify 结合名称关键词与 leaf_type 判定业务类型。业务类型不决定路由。
 //
-// 业务类型只影响展示标签与是否按截止时间提醒，不决定路由。
-//
-// 判定顺序：
-//  1. leaf_type=4 已能锁定语义，不让标题改写；
-//  2. 名称关键词优先（考试 > 讨论 > 作业 > 视频）——同一门课里
-//     「作业-第1章」与「讨论-导论」共用 leaf_type=6，只看数字会误判；
-//  3. 名称无命中时退回 leaf_type 映射表。
+// 关键词优先于 leaf_type，因为同一门课里「作业-第1章」与「讨论-导论」
+// 共用 leaf_type=6，只看数字会误判。leaf_type=4 例外：它能锁定语义，
+// 不让标题改写。
 func classify(title string, leafType int64) domain.TaskType {
 	if leafType == LeafTypeDiscussGroup {
 		return domain.TaskDiscuss
@@ -107,31 +92,27 @@ func mapLeafType(lt int64) domain.TaskType {
 	return domain.TaskOther
 }
 
-// routeKind 是网页端路由种类，与业务类型（domain.TaskType）解耦。
+// routeKind 是网页端路由种类，与业务类型解耦。
 //
-// 业务类型用于展示与提醒，路由用于打开页面，两者关注点不同。
 // 反例：「P1.3 电路元件」按关键词是作业，但它是课件（leaf_type=7），
-// 必须走 /video，走 quiz 报"没有权限"；
-// 「课堂测试1」业务上是考试，却挂在老版 /v2/web/exam 下。
-// 早期让业务类型直接决定路由，导致每修好一类就崩另一类。
+// 必须走 /video，走 quiz 报"没有权限"；「课堂测试1」业务上是考试，
+// 却挂在老版 /v2/web/exam 下。让业务类型直接决定路由会互相打架。
 type routeKind int
 
 const (
-	// routeChapter 是 ai-workspace 章节内路由（video/forum/quiz/node）。
+	// routeChapter 是 ai-workspace 章节内路由。
 	routeChapter routeKind = iota
-	// routeExamLegacy 是老版考试页 /v2/web/exam/{cid}/{coursewareID}。
+	// routeExamLegacy 是老版考试页。
 	routeExamLegacy
-	// routeQuizSummary 是老版习题成绩页 /v2/web/quizSummary/{cid}/{id}。
+	// routeQuizSummary 是老版习题成绩页。
 	routeQuizSummary
 )
 
 // taskTypeFromLabel 把服务端的内容标签翻译成业务类型。
 //
-// 依据 /leaf_info 的 content_info.score_evaluation.name，实测取值：
-// 视频 / 图文 / 讨论 / 作业 / 考试 / 课堂 / 雨课堂课件。
-//
-// 这是**最可靠的类型来源**：leaf_type 在同一门课内都会漂移，标题关键词
-// 又会被"小组作业"这类名字骗到。
+// content_info.score_evaluation.name 是最可靠的类型来源：leaf_type 在同一
+// 门课内会漂移，标题关键词又会被"小组作业"这类名字骗到。
+// 取值：视频 / 图文 / 讨论 / 作业 / 考试 / 课堂 / 雨课堂课件。
 func taskTypeFromLabel(label string) domain.TaskType {
 	switch strings.TrimSpace(label) {
 	case "讨论":
@@ -141,7 +122,7 @@ func taskTypeFromLabel(label string) domain.TaskType {
 	case "作业":
 		return domain.TaskHomework
 	case "视频", "图文", "课堂", "雨课堂课件":
-		// 内容阅读器类：没有"提交"概念，等价于原先的 TaskVideo 语义。
+		// 内容阅读器类，没有"提交"概念。
 		return domain.TaskVideo
 	}
 	return domain.TaskOther
@@ -149,18 +130,11 @@ func taskTypeFromLabel(label string) domain.TaskType {
 
 // taskTypeFromInfo 综合服务端标签与计分字段判定业务类型。
 //
-// 「雨课堂课件」这个标签不能单独决定类型。leaf_type=7 的 21 个"课件"里，
-// 既有纯阅读材料，也有 is_assessed=true、score_deadline 有值、占成绩 5%
-// 的计分任务（「作业1单元」「期中2026」）。一律当 TaskVideo 会让这部分
-// 任务不参与截止提醒。
-//
-// 判据用 is_assessed && score_deadline > 0，实测分布：
-//
-//	leaf_type  该组合是否出现   说明
-//	5/7/9      是              作业/计分课件/考试
-//	0/3/8      从不出现        纯视频/图文/课堂录像，无提交概念
-//
-// 这个组合比标签名更准，是"是否计分任务"的可靠判据。
+// 「雨课堂课件」不能单独决定类型：leaf_type=7 里既有纯阅读材料，也有
+// is_assessed=true 且 score_deadline 有值、占成绩 5% 的计分任务
+// （「作业1单元」「期中2026」）。一律当 TaskVideo 会让它们不参与提醒。
+// is_assessed && score_deadline > 0 这个组合只在 5/7/9 出现，
+// 从不出现于 0/3/8，是"是否计分任务"的可靠判据。
 func taskTypeFromInfo(d LeafInfoData) domain.TaskType {
 	label := d.ContentLabel()
 	assessedWithDeadline := d.IsAssessed.Bool() && d.ScoreDeadline.Unix() > 0
@@ -175,19 +149,11 @@ func taskTypeFromInfo(d LeafInfoData) domain.TaskType {
 	return taskTypeFromLabel(label)
 }
 
-// chapterSegmentByContent 返回 ai-workspace 章节路由的路径段。
+// chapterSegmentByContent 返回章节路由的路径段。
 //
-// 优先用服务端标签（content_info.score_evaluation.name），它比 leaf_type
-// 可靠：同一门课内 leaf_type 会漂移——「讨论-导论」是 6、
-// 「课前讨论：古典概型」是 0、「小组作业」是 4，而服务端标签始终准确。
+// 服务端标签比 leaf_type 可靠（同一门课内 leaf_type 会漂移：
+// 「讨论-导论」是 6、「课前讨论：古典概型」是 0、「小组作业」是 4）。
 // leafType 只在拿不到详情时兜底。
-//
-// 实测对照（浏览器逐条打开验证）：
-//
-//	服务端标签                路由    备注
-//	讨论                      forum   需补 node_id=chapter_id
-//	作业 / 考试               quiz    可被学习日志升级为老版页面
-//	视频/图文/课堂/雨课堂课件   video   走 quiz 报"没有权限"
 func chapterSegmentByContent(label string, leafType int64) string {
 	switch strings.TrimSpace(label) {
 	case "讨论":
@@ -240,16 +206,8 @@ type candidateLeaf struct {
 
 // collectLeaves 深度遍历章节树，收集所有叶子。
 //
-// 结构（三层）：
-//
-//	course_chapter[]            ← 章
-//	  └── section_leaf_list[]   ← 可能是"节"，也可能直接是叶子
-//	        ├── leaf_list[]     ← "节"下面的真实叶子（视频/图文）
-//	        └── (leaf_type!=0)  ← 自己就是叶子（作业/考试/讨论）
-//
-// section_leaf_list 里的视频类条目往往是"节"（leaf_type=0、无 leafinfo_id），
-// 必须下钻 leaf_list 才能拿到真实叶子，否则生成的视频链接打不开。
-// 同时兼容两种历史变体：叶子字段直接挂在章节上、章节嵌套 children[]。
+//	section_leaf_list[]  ← 可能是"节"，也可能直接是叶子
+//	  └── leaf_list[]    ← "节"下面的真实叶子
 func collectLeaves(chapters []ChapterNode, course, classroom string) []candidateLeaf {
 	var out []candidateLeaf
 
@@ -384,18 +342,6 @@ func parseStatus(s string) domain.TaskStatus {
 	}
 }
 
-// statusFromLeafInfo 从详情响应推断完成状态。
-//
-// 详情接口不提供完成状态：真实响应里没有 is_finish / status / score_status，
-// force_reason 表达的是"还能不能提交"而非"做没做完"。完成状态一律由
-// 学习日志的 status 字段提供（见 learnLogStatus），此处恒返回 Unknown。
-func statusFromLeafInfo(d LeafInfoData) domain.TaskStatus {
-	if d.IsDeleted.Bool() {
-		return domain.StatusUnknown
-	}
-	return domain.StatusUnknown
-}
-
 // toTask 把候选叶子转成 domain.Task。
 func toTask(c candidateLeaf, baseURL string) domain.Task {
 	title := strings.TrimSpace(c.title)
@@ -440,10 +386,10 @@ func leafURLWithLabel(baseURL string, c candidateLeaf, contentLabel string) stri
 		"", segment, routeChapter)
 }
 
-// webTaskURL 按业务类型生成链接（兼容旧调用点与测试）。
+// webTaskURL 按业务类型生成链接。
 //
-// 新代码应使用 taskURLByKind：业务类型与路由是两件事。
-// 这个入口保留给 examToTask 与只需要"类型 → 链接"的简单场景。
+// 新代码用 taskURLByKind；这个入口保留给 examToTask 与"只有类型没有路由
+// 信息"的场景。
 func webTaskURL(baseURL, classroomID, leafID string, typ domain.TaskType, examID, chapterID string) string {
 	if classroomID == "" || baseURL == "" {
 		return baseURL + webHomeURL
@@ -451,11 +397,9 @@ func webTaskURL(baseURL, classroomID, leafID string, typ domain.TaskType, examID
 	if leafID != "" {
 		switch typ {
 		case domain.TaskHomework:
-			// 能匹配到 courseware_id 时调用方会用 quizSummary 覆盖，
-			// 那里才是查看成绩的正确落点。
 			return baseURL + fmt.Sprintf(webQuizURLFormat, classroomID, leafID) + webChapterQuery
 		case domain.TaskExam:
-			// ai-workspace 的 quiz 路由只能定位到章节位置，打不开试卷本身。
+			// 章节 quiz 路由只能定位到章节位置，打不开试卷本身。
 			if examID != "" {
 				return baseURL + fmt.Sprintf(webExamURLFormat, classroomID, examID)
 			}
@@ -469,22 +413,15 @@ func webTaskURL(baseURL, classroomID, leafID string, typ domain.TaskType, examID
 			return chapterURL(baseURL, classroomID, leafID, "node", nil)
 		}
 	}
-	// 没有叶子 ID 但知道 exam_id（来自 /v/exam/cover 的路径）。
 	if typ == domain.TaskExam && examID != "" {
 		return baseURL + fmt.Sprintf(webExamURLFormat, classroomID, examID)
 	}
 	return baseURL + webHomeURL
 }
 
-// chapterURL 拼 ai-workspace 章节内路由。
-//
-// segment 是内容实际挂载的组件（video/forum/quiz/node），不是业务类型。
-// extra 里值为空串的键会被跳过。
+// chapterURL 拼章节内路由。segment 是组件名，不是业务类型。
 func chapterURL(baseURL, classroomID, leafID, segment string, extra map[string]string) string {
-	if classroomID == "" || baseURL == "" {
-		return baseURL + webHomeURL
-	}
-	if leafID == "" || segment == "" {
+	if classroomID == "" || baseURL == "" || leafID == "" || segment == "" {
 		return baseURL + webHomeURL
 	}
 	u := baseURL + "/ai-workspace/lms-graph/" + classroomID + "/" + segment + "/" + leafID + webChapterQuery
@@ -499,12 +436,7 @@ func chapterURL(baseURL, classroomID, leafID, segment string, extra map[string]s
 
 // taskURLByKind 按路由种类生成链接，与业务类型无关。
 //
-// 路由由 leaf_type 与数据可用性决定；业务类型只影响"要不要提醒"，
-// 不影响"点开能不能看到内容"。
-//
-//   - kind         路由种类（章节 / 老版考试页 / 老版成绩页）
-//   - segment      章节路由的组件名（video/forum/quiz/node）
-//   - coursewareID 学习日志给出的试卷 ID，仅老版路由使用
+// coursewareID 是学习日志给出的试卷 ID，仅老版路由使用。
 func taskURLByKind(baseURL, classroomID, leafID, chapterID, coursewareID, segment string, kind routeKind) string {
 	if baseURL == "" || classroomID == "" {
 		return baseURL + webHomeURL
@@ -531,16 +463,9 @@ func taskURLByKind(baseURL, classroomID, leafID, chapterID, coursewareID, segmen
 
 // isPureContentLeaf 判断该叶子是否为纯内容类（无需拉详情）。
 //
-// 判据用 leaf_type 而非 classify：后者按标题关键词猜，会把「作业1单元」
-// 「期中2026」这类计分课件（leaf_type=7）判错。
-//
-// 依据 is_assessed × score_deadline 的实测分布：
-//
-//	leaf_type 3 图文      从不出现计分组合  → 纯内容
-//	leaf_type 8 课堂录像  从不出现          → 纯内容
-//	leaf_type 0 视频      部分出现          → 不跳过（有 28 个计分任务）
-//	leaf_type 7 课件      全部出现          → 不跳过
-//	leaf_type 4/5/6/9     部分出现          → 不跳过
+// 只有 3 图文与 8 课堂录像从不出现计分组合（is_assessed && score_deadline>0）。
+// 0 视频虽然多是内容，但有部分是计分任务，因此不能整类跳过。
+// 判据用 leaf_type 而非 classify，后者按标题猜会把计分课件判错。
 func isPureContentLeaf(leaf candidateLeaf) bool {
 	switch leaf.leafType {
 	case 3, 8:
@@ -551,9 +476,7 @@ func isPureContentLeaf(leaf candidateLeaf) bool {
 
 // isPaperLeaf 判断该 leaf_type 是否属于试卷类（作业/考试）。
 //
-// 只有试卷类才会出现在学习日志里、并有 courseware_id 指向老版页面。
-// 课件(3/7)、视频(0/8)、讨论(4) 的 courseware_id 不是试卷 ID，
-// 拿来拼链接会得到打不开的地址。
+// 只有试卷类才会出现在学习日志里并有 courseware_id 指向老版页面。
 func isPaperLeaf(leafType int64) bool {
 	switch leafType {
 	case 5, 6, 9:
@@ -563,8 +486,6 @@ func isPaperLeaf(leafType int64) bool {
 }
 
 // needsCoursewareID 判断这门课是否值得拉学习日志。
-//
-// 只看 leaf_type：按标题关键词判定会把课件也算进来，白花请求。
 func needsCoursewareID(leaves []candidateLeaf) bool {
 	for _, leaf := range leaves {
 		if isPaperLeaf(leaf.leafType) {
@@ -576,12 +497,9 @@ func needsCoursewareID(leaves []candidateLeaf) bool {
 
 // coursewareIndex 是"标题 → 试卷 ID"的索引，由学习日志构建。
 //
-// 按标题而非 ID 匹配：章节树给的是 node id / leafinfo_id，学习日志给的是
-// courseware_id，两者之间没有可 join 的字段。标题是唯一稳定的公共信息。
-// 匹配不上只会让链接退回 ai-workspace 路由，不会报错，因此这个弱关联
-// 是可以接受的折中。
+// 按标题而非 ID 匹配：章节树给的是 node id，学习日志给的是 courseware_id，
+// 两者之间没有可 join 的字段。匹配不上只会让链接退回章节路由，不会报错。
 type coursewareIndex struct {
-	// byTitle 的键是归一化后的标题。
 	byTitle map[string]coursewareRef
 }
 
@@ -589,22 +507,14 @@ type coursewareIndex struct {
 type coursewareRef struct {
 	coursewareID string
 	kind         int64 // LearnLogQuiz / LearnLogExam
-	// status 是学习日志的完成状态编码，语义见 learnLogStatus。
-	status int64
-	// statusKnown 表示响应里确实带了 status 字段。
-	statusKnown bool
+	status       int64 // 完成状态编码，语义见 learnLogStatus
+	statusKnown  bool  // 响应里确实带了 status 字段
 }
 
 // learnLogStatus 把学习日志的 status 编码翻译为完成状态。
 //
-// 依据 65 条作业/考试日志与 score 字段的逐条比对：
-//
-//	status=3  → score 有值（含 0/4 这种低分），48 条 → 已完成
-//	status=1  → score 为空，5 条                   → 未完成
-//	status=0  → score 为空，12 条                  → 未完成
-//
-// 0 与 1 可能有"未开始/已开始未提交"的区别，但都意味着还没交，
-// 对提醒而言同属未完成。
+// 3 表示已完成（score 有值，含 0 分），0 与 1 都表示还没交。
+// 两者之间的细微差别对提醒没有意义。
 func learnLogStatus(s int64, known bool) domain.TaskStatus {
 	if !known {
 		return domain.StatusUnknown
@@ -617,8 +527,8 @@ func learnLogStatus(s int64, known bool) domain.TaskStatus {
 
 // normalizeTitle 归一化标题用于匹配。
 //
-// 只做去首尾空白与合并连续空白，不删标点：章节树与学习日志的标题
-// 连全角引号都一致，过度归一化反而会把不同任务判成同一个。
+// 只去首尾空白并合并连续空白，不删标点：两侧标题连全角引号都一致，
+// 过度归一化反而会把不同任务判成同一个。
 func normalizeTitle(s string) string {
 	return strings.Join(strings.Fields(strings.TrimSpace(s)), " ")
 }
@@ -680,13 +590,8 @@ func (idx *coursewareIndex) lookup(title string) (coursewareRef, bool) {
 
 // webURL 生成该试卷的网页端直达链接。
 //
-// 路由由学习日志的 type 决定：
-//
-//	type=5 考试  → /v2/web/exam/{cid}/{courseware_id}
-//	type=4 习题  → /v2/web/quizSummary/{cid}/{courseware_id}
-//
-// 两者都是老版 UI，但这是唯一能真正打开对应试卷的地址——
-// ai-workspace 的 quiz 路由只能定位到章节位置，不带试卷内容。
+// type=5 走 /v2/web/exam，type=4 走 /v2/web/quizSummary。两者都是老版 UI，
+// 但这是唯一能真正打开试卷本身的地址。
 func (r coursewareRef) webURL(baseURL, classroomID string) string {
 	if baseURL == "" || classroomID == "" || r.coursewareID == "" {
 		return ""
@@ -723,17 +628,13 @@ func firstNonEmpty(vals ...string) string {
 	return ""
 }
 
-// applyLeafInfo 用详情接口的结果补全任务信息。
-//
-// 详情通常比章节树更准确，因此以详情为准，但不会清空已有的有效值。
+// applyLeafInfo 用详情接口的结果补全任务信息，不清空已有的有效值。
 func applyLeafInfo(t domain.Task, d LeafInfoData) domain.Task {
-	// 真实响应里标题字段名是 name；Title 作为兼容保留。
 	if title := strings.TrimSpace(d.Title.String()); title != "" {
 		t.Title = title
 	}
-	// 服务端标签优先：score_evaluation.name 是权威类型，比标题关键词可靠
-	// （「小组作业」标签是"讨论"、「作业1单元」标签是"雨课堂课件"）。
-	// 计分课件再由 is_assessed + score_deadline 提升为作业。
+	// 服务端标签是权威类型，比标题关键词可靠。计分课件再由
+	// is_assessed + score_deadline 提升为作业。
 	if label := d.ContentLabel(); label != "" {
 		t.Type = taskTypeFromInfo(d)
 	} else if t.Title != "" {
@@ -743,8 +644,8 @@ func applyLeafInfo(t domain.Task, d LeafInfoData) domain.Task {
 		}
 	}
 
-	// 严格只用 score_deadline。class_end_time 是整门课的结束时间，
-	// 拿它兜底会让已截止的作业显示成"还有 84 天"，掩盖真正的逾期。
+	// 严格只用 score_deadline：class_end_time 是整门课的结束时间，
+	// 拿它兜底会让已截止的作业显示成"还有 84 天"。
 	if t.Type.HasDeadline() {
 		if sec := d.ScoreDeadline.Unix(); sec != 0 {
 			t.Deadline = timeOrZero(sec)
@@ -754,9 +655,7 @@ func applyLeafInfo(t domain.Task, d LeafInfoData) domain.Task {
 	if sec := d.ClassStartTime.Unix(); sec != 0 && t.StartAt.IsZero() {
 		t.StartAt = timeOrZero(sec)
 	}
-	if st := statusFromLeafInfo(d); st != domain.StatusUnknown {
-		t.Status = st
-	}
+	// 详情接口不含完成状态，Status 由学习日志提供，此处保持不变。
 	return t
 }
 

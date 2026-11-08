@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/2963609262/ykt-reminder/internal/domain"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/domain"
 )
 
 // 本文件实现各只读接口的调用，返回已归一化的数据。
@@ -48,9 +48,6 @@ func (c *Client) Courses(ctx context.Context) ([]CourseItem, error) {
 }
 
 // Chapter 返回某课程的章节树（带 TTL 缓存）。
-//
-// 缓存的意义：章节树较大且变化不频繁，而轮询每 10 分钟一次；
-// 缓存可把每轮请求数从 O(课程数) 的重复拉取降到"过期的才拉"。
 func (c *Client) Chapter(ctx context.Context, classroomID string) (*ChapterData, error) {
 	c.chapterMu.Lock()
 	if e, ok := c.chapterCache[classroomID]; ok && time.Since(e.at) < c.chapterTTL {
@@ -79,8 +76,7 @@ func (c *Client) Chapter(ctx context.Context, classroomID string) (*ChapterData,
 
 // LeafInfo 返回某叶子的详情（带 TTL 缓存）。
 //
-// 参数 leafID 必须是**章节树节点 id**（LeafNode.ID），不是 leafinfo_id。
-// 传 leafinfo_id 会稳定返回 404000 "Objects does not exist."（实测 0/40）。
+// leafID 必须是章节树节点 id，不是 leafinfo_id——传后者会返回 404000。
 func (c *Client) LeafInfo(ctx context.Context, classroomID, leafID string) (LeafInfoData, error) {
 	data, _, err := c.leafInfoCached(ctx, classroomID, leafID, time.Time{})
 	return data, err
@@ -88,9 +84,8 @@ func (c *Client) LeafInfo(ctx context.Context, classroomID, leafID string) (Leaf
 
 // leafInfoCached 是带缓存标记的详情查询。
 //
-// deadlineHint 用于选择缓存时长：越临近截止的任务，缓存越短（刷得越勤）；
-// 远期任务缓存长达数小时，避免每轮都重复拉一遍几乎不会变的数据。
-// 第二个返回值 reports 该结果是否来自缓存，供调用方统计"真实请求量"。
+// deadlineHint 决定缓存时长：越临近截止刷得越勤，远期任务缓存数小时。
+// 第二个返回值表示结果是否来自缓存，供调用方统计真实请求量。
 func (c *Client) leafInfoCached(ctx context.Context, classroomID, leafID string, deadlineHint time.Time) (LeafInfoData, bool, error) {
 	cacheKey := classroomID + ":" + leafID
 	ttl := c.ttlFor(deadlineHint)
@@ -105,8 +100,7 @@ func (c *Client) leafInfoCached(ctx context.Context, classroomID, leafID string,
 	path := fmt.Sprintf(pathLeafInfo, url.PathEscape(classroomID), url.PathEscape(leafID))
 
 	var env APIEnvelope[LeafInfoData]
-	// classroom-id 头是必需的：缺失时服务端返回 40000 CLASSROOM ID IS REQUIRED，
-	// 而且 HTTP 状态码仍是 200，不看 error_code 会误判成功。
+	// classroom-id 头缺失时服务端仍返回 HTTP 200，只在 error_code 里报错。
 	if err := c.getJSONScoped(ctx, path, nil, classroomID, &env); err != nil {
 		return LeafInfoData{}, false, err
 	}
@@ -122,13 +116,7 @@ func (c *Client) leafInfoCached(ctx context.Context, classroomID, leafID string,
 
 // learnLogsCached 拉取某门课的学习日志（带 TTL 缓存）。
 //
-// 用途：补全考试/习题的真实 ID（courseware_id）。章节树拿不到这个字段，
-// 详见 endpoints.go 里 pathLearnLogs 的注释。
-//
-// 分页：接口按 offset 翻页，has_more 为 true 时继续。实测单课最多 2 页
-// （33 条），因此这里限死 maxPages=10 防止异常数据导致无限循环。
-//
-// 第二个返回值 reports 是否来自缓存。
+// 按 offset 翻页，has_more 为 true 时继续。maxPages 防止异常数据导致死循环。
 func (c *Client) learnLogsCached(ctx context.Context, classroomID string) ([]LearnLogActivity, bool, error) {
 	cacheKey := "logs:" + classroomID
 
@@ -355,13 +343,8 @@ func (c *Client) fetchCourse(ctx context.Context, course CourseItem, detailDays 
 	leaves = append(leaves, collectFlatLeaves(data.LeafInfo, courseName, classroomID)...)
 	stats.Leaves = len(leaves)
 
-	// 学习日志：用来补全考试/习题的真实 ID（courseware_id）。
-	//
-	// 章节树里 exam.exam_id 全站为空，用章节树自己的 id 拼出来的链接会落到
-	// 错误页面，只有学习日志能给出真正的试卷 ID。
-	//
-	// 开销控制：只有章节树里确实存在考试/习题叶子时才拉（纯视频课拉了没用），
-	// 日志本身还有 TTL 缓存。失败不影响主流程，退回章节路由即可。
+	// 学习日志用来补全考试/习题的真实 ID：章节树的 exam.exam_id 全站为空，
+	// 只有学习日志能给出试卷 ID。纯视频课没有试卷叶子，不必拉。
 	var cwIndex *coursewareIndex
 	if needsCoursewareID(leaves) {
 		cwIndex = c.buildCoursewareIndex(ctx, classroomID, &stats)
@@ -372,22 +355,17 @@ func (c *Client) fetchCourse(ctx context.Context, course CourseItem, detailDays 
 	for _, leaf := range leaves {
 		task := toTask(leaf, baseURL)
 
-		// 是否需要拉详情的判定，按"拉回来有没有用"来分。
-		//
-		// 视频/课件类不参与截止提醒，详情给的 score_deadline 是整门课
-		// 的结束时间，对提醒没有价值。这类叶子占全部样本的一半以上，
+		// 按"拉回来有没有用"决定是否拉详情。纯内容类占全部叶子的半壁江山，
 		// 跳过它们能省掉大量请求。
 		needDetail := true
 		switch {
 		case isPureContentLeaf(leaf):
-			// 纯内容类（真视频/课堂录像/图文课件）：章节树没有截止时间，
-			// 详情也只有课程结束时间，拉了没用。
 			needDetail = false
 		case leaf.deadline == 0:
-			// 章节树没给截止时间，详情可能给，必须查。
+			// 章节树没给截止时间，详情可能给。
 			needDetail = true
 		case timeOrZero(leaf.deadline).Before(deadlineHorizon):
-			// 临近或已过期：要新鲜数据。
+			// 临近或已过期，要新鲜数据。
 			needDetail = true
 		default:
 			// 远期且已知截止时间：章节树的信息足够排期。

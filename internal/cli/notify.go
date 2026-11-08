@@ -11,16 +11,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/2963609262/ykt-reminder/internal/config"
-	"github.com/2963609262/ykt-reminder/internal/domain"
-	"github.com/2963609262/ykt-reminder/internal/notify"
-	"github.com/2963609262/ykt-reminder/internal/ykt"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/config"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/domain"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/notify"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/ykt"
 )
 
 // cmdNotify 测试通知通道。
 func cmdNotify(ctx context.Context, cfg config.Config, args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 || args[0] != "test" {
-		fmt.Fprintln(stderr, "用法: ykt-reminder notify test [--dry-run]")
+		fmt.Fprintln(stderr, "用法: rainclass-reminder notify test [--dry-run]")
 		return 2
 	}
 	fs := flag.NewFlagSet("notify test", flag.ContinueOnError)
@@ -112,7 +112,7 @@ func cmdProbe(ctx context.Context, cfg config.Config, args []string, stdout, std
 	defer app.Close()
 
 	if !app.Auth.Valid() {
-		fmt.Fprintln(stderr, `尚未登录。请执行：ykt-reminder auth import --cookie "sessionid=...; csrftoken=..."`)
+		fmt.Fprintln(stderr, `尚未登录。请执行：rainclass-reminder auth import --cookie "sessionid=...; csrftoken=..."`)
 		return 1
 	}
 

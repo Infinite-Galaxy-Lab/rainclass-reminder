@@ -1,21 +1,20 @@
 # 第二个账号的配置示例（多实例部署方式）
 #
 # 用法：
-#   1. 复制本文件到你的运行目录，例如 %AppData%\ykt-reminder-2\config.yaml
+#   1. 复制本文件到你的运行目录，例如 %AppData%\rainclass-reminder-2\config.yaml
 #   2. 把 data_dir 指向独立目录，避免与账号一互相覆盖
 #   3. 把 web_ui.listen 改成不同端口
-#   4. 用 `ykt-reminder --config <本文件> run` 启动第二个实例
+#   4. 用 `rainclass-reminder --config <本文件> run` 启动第二个实例
 #
 # 为什么用多实例而不是多账号：
-#   单进程多账号需要给 pushes.key、tasks.id、kv.key 全部加账号维度
-#   并做数据迁移（详见 docs/EVOLUTION.md §六），改动面覆盖 8 个包、
-#   40-60 处代码。多实例靠"每实例独立 data_dir + 独立端口"即可完全隔离，
-#   代价只是多一个进程（实测每个约 24MB）。
+#   单进程多账号需要给 pushes.key、tasks.id、kv.key 全部加账号维度并做
+#   数据迁移，改动面覆盖 8 个包。多实例靠"每实例独立 data_dir + 独立端口"
+#   即可完全隔离，代价只是多一个进程。
 #
 # 注意：不要把真实凭据写进本文件，用环境变量注入：
 #   YKT_FEISHU_WEBHOOK / YKT_FEISHU_SECRET / YKT_EMAIL_PASSWORD
 
-data_dir: ""   # 必须改成独立目录，例如 C:/Users/you/AppData/Roaming/ykt-reminder-2/data
+data_dir: ""   # 必须改成独立目录，例如 C:/Users/you/AppData/Roaming/rainclass-reminder-2/data
 
 poll:
   interval: 10m
@@ -106,4 +105,4 @@ web_ui:
 
 log:
   level: info
-  file: ""   # 建议填独立文件，例如 C:/Users/you/AppData/Roaming/ykt-reminder-2/ykt.log
+  file: ""   # 建议填独立文件，例如 C:/Users/you/AppData/Roaming/rainclass-reminder-2/app.log

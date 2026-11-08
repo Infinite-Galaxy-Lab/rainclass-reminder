@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/2963609262/ykt-reminder/internal/domain"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/domain"
 )
 
 // TestBootstrapSilencesHistory 验证首次运行不会补发历史提醒。

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/2963609262/ykt-reminder/internal/domain"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/domain"
 )
 
 func TestFeishuSignDeterministic(t *testing.T) {

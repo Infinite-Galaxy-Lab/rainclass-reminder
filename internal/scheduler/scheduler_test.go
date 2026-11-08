@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/2963609262/ykt-reminder/internal/domain"
-	"github.com/2963609262/ykt-reminder/internal/notify"
-	"github.com/2963609262/ykt-reminder/internal/store"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/domain"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/notify"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/store"
 )
 
 // fakeSource 是可控的假数据源。

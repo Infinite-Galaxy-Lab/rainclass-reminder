@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/2963609262/ykt-reminder/internal/domain"
-	"github.com/2963609262/ykt-reminder/internal/ykt"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/domain"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/ykt"
 )
 
 // YktSource 把 ykt.Client 适配为调度器需要的 Fetcher。

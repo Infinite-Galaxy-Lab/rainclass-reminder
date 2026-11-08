@@ -29,7 +29,7 @@
 ### 目录职责（改代码前先看这里）
 
 ```
-cmd/ykt-reminder/main.go      入口，只调 cli.Run
+cmd/rainclass-reminder/main.go      入口，只调 cli.Run
 internal/cli/                 子命令：run/tasks/auth/notify/probe/web
 internal/config/              配置加载 + 平台路径 + 校验
 internal/domain/              ★纯领域层：Task/Milestone/Policy，零 I/O
@@ -53,7 +53,7 @@ internal/webui/               本地面板（embed 静态资源）
 ### 依赖方向（不可违反）
 
 ```
-cmd/ykt-reminder → cli
+cmd/rainclass-reminder → cli
 cli              → {auth, config, domain, notify, qrutil, scheduler, store, webui, ykt}
 scheduler        → {domain, notify, store, ykt}
 webui            → {auth, config, notify, qrutil, store, ykt}
@@ -294,7 +294,7 @@ export YKT_FEISHU_SECRET="签名密钥"
 
 **方式 B：配置文件**
 
-编辑 `config.yaml`（Windows 在 `%AppData%\ykt-reminder\config.yaml`）：
+编辑 `config.yaml`（Windows 在 `%AppData%\rainclass-reminder\config.yaml`）：
 
 ```yaml
 notify:
@@ -308,13 +308,13 @@ notify:
 **方式 C：Docker / systemd**
 
 - Docker：写在 `deploy/docker-compose.yml` 的 `environment:` 段，或用 `.env` 文件
-- systemd：写在 `/etc/ykt-reminder/env`（权限 600），unit 已配 `EnvironmentFile`
+- systemd：写在 `/etc/rainclass-reminder/env`（权限 600），unit 已配 `EnvironmentFile`
 
 ### 验证
 
 ```bash
-./ykt-reminder notify test          # 手机应收到一张卡片
-./ykt-reminder notify test --dry-run # 只打印内容，不发送
+./rainclass-reminder notify test          # 手机应收到一张卡片
+./rainclass-reminder notify test --dry-run # 只打印内容，不发送
 ```
 
 ### 常见错误对照
@@ -761,7 +761,7 @@ v0.6.0 让 `RefreshedAt` 只在 cookie **值变化**时推进。实测发现这�
 | 16 | `notify.webhook.headers` 配了无效 | `config` 定义了字段，但 `WebhookOptions` 没有、装配时没传 | 补 `Headers` 字段并在 `Send` 里 `req.Header.Set` |
 | 17 | `SetSession` 数据竞争（潜伏） | `session` 字段无锁写，`applyHeaders` 并发读 | 改 `atomic.Pointer[sessionBox]`（`atomic.Pointer` 存不了接口，故包一层） |
 | 18 | 面板版本号恒显示 dev | `webui` 里写死 `"dev"`，且不能 import `cli`（会成环） | `Options.Version` 由 `cli` 注入 |
-| 19 | webhook 的 User-Agent 恒为 `ykt-reminder/dev` | `build.sh` 只注入了 `cli.Version` | LDFLAGS 追加 `notify.Version` |
+| 19 | webhook 的 User-Agent 恒为 `rainclass-reminder/dev` | `build.sh` 只注入了 `cli.Version` | LDFLAGS 追加 `notify.Version` |
 
 **3. 我自己的前端 bug（写下来免得再踩）**
 
@@ -905,7 +905,7 @@ ykt:
   却拿不到交互式桌面会话，`beeep` 桌面通知就发不出去。
   VBS 的 `WScript.Shell.Run(..., 0, False)` 两个问题都解决。
 - 日志必须落盘（计划任务无控制台）：`log.file` 已指向
-  `%AppData%\ykt-reminder\ykt.log`
+  `%AppData%\rainclass-reminder\ykt.log`
 
 ### v0.2.0 — 2026-11-07 · 多通道与凭据安全加固
 
@@ -1327,7 +1327,7 @@ type Notifier interface {
 
 ```bash
 # 1. 生成脱敏快照
-./ykt-reminder probe --out probe_out
+./rainclass-reminder probe --out probe_out
 
 # 2. 看原始结构（需要更底层时）
 python tools/probe_raw.py
@@ -1373,14 +1373,14 @@ policy:
 ### 场景 5：cookie 失效了
 
 ```bash
-./ykt-reminder auth status   # 看是否有效
-./ykt-reminder auth login    # 重新扫码（终端直接出 ASCII 二维码）
+./rainclass-reminder auth status   # 看是否有效
+./rainclass-reminder auth login    # 重新扫码（终端直接出 ASCII 二维码）
 ```
 
 **更方便的方式：用面板扫码**
 
 ```bash
-./ykt-reminder web           # 起面板（只起面板，不跑提醒循环）
+./rainclass-reminder web           # 起面板（只起面板，不跑提醒循环）
 # 浏览器打开 http://127.0.0.1:8787
 # 顶部红色横幅里有「微信扫码登录」按钮，点一下出图，手机扫
 ```
@@ -1601,22 +1601,22 @@ v0.6.6 已接入，实测 464 条里 90 条拿到了状态。
 
 3. **跑一次真实流程**
    ```bash
-   ./ykt-reminder auth status     # 登录态是否有效
-   ./ykt-reminder tasks           # 真实任务列表
-   ./ykt-reminder run --once --dry-run  # 不发送地跑一轮
+   ./rainclass-reminder auth status     # 登录态是否有效
+   ./rainclass-reminder tasks           # 真实任务列表
+   ./rainclass-reminder run --once --dry-run  # 不发送地跑一轮
    ```
 
 4. **打开面板看现状**
    ```bash
-   ./ykt-reminder web
+   ./rainclass-reminder web
    # 浏览器 http://127.0.0.1:8787
    ```
 
 5. **确认常驻服务在跑**（Windows 开机自启已注册）
    ```powershell
    Get-ScheduledTask -TaskName YktReminder | Get-ScheduledTaskInfo
-   Get-Process ykt-reminder          # 应有 1 个进程，约 24MB
-   tail $env:APPDATA\ykt-reminder\ykt.log
+   Get-Process rainclass-reminder          # 应有 1 个进程，约 24MB
+   tail $env:APPDATA\rainclass-reminder\ykt.log
    # 关注这行：channels="[desktop feishu]" —— 证明飞书凭据已读到
    ```
 

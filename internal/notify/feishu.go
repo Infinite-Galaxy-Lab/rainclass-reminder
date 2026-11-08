@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/2963609262/ykt-reminder/internal/netguard"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/netguard"
 )
 
 // Feishu 是飞书自定义机器人通道。

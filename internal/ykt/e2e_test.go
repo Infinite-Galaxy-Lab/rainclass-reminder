@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/2963609262/ykt-reminder/internal/domain"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/domain"
 )
 
 // fakeServer 模拟雨课堂的三类只读接口，返回真实结构（脱敏后）的 JSON。

@@ -7,12 +7,11 @@ import (
 	"time"
 )
 
-// 本文件处理雨课堂 API 的"宽容解析"。
+// 本文件处理雨课堂 API 的宽容解析。
 //
-// 实测该 API 的字段类型不稳定：同一个字段在字符串/数字之间摇摆，
-// 时间戳有时是秒、有时是毫秒、有时是格式化字符串。
-// 因此所有可能变化的标量都包一层自定义类型，解析失败不报错而是退化为零值，
-// 保证"一个字段坏了不影响整体任务列表"。
+// 该 API 的字段类型不稳定：同一个字段在字符串与数字之间摇摆，时间戳有时
+// 是秒、有时是毫秒、有时是格式化字符串。所有可能变化的标量都包一层自定义
+// 类型，解析失败退化为零值而非报错，保证一个坏字段不影响整个任务列表。
 
 // FlexInt 兼容 123 / "123" / 123.0 / null。
 type FlexInt int64
@@ -77,9 +76,8 @@ func (f FlexString) String() string { return string(f) }
 
 // FlexBool 兼容 true / false / 1 / 0 / "true" / "1" / null。
 //
-// 存在的理由：详情接口里 is_locked / is_deleted / is_assessed 实测是
-// JSON 布尔值，而 FlexInt 会把 true 和 false 都解析成 0（ParseInt 失败后
-// 退化为零值），两者无法区分。
+// 详情接口的 is_locked / is_deleted / is_assessed 是 JSON 布尔值，
+// 而 FlexInt 会把 true 和 false 都解析成 0，两者无法区分。
 type FlexBool bool
 
 // UnmarshalJSON 实现宽容布尔解析。
@@ -133,10 +131,9 @@ func (f *FlexTime) UnmarshalJSON(b []byte) error {
 
 	// 纯数字：按量级区分秒/毫秒。
 	//
-	// 必须同时支持整数与浮点：实测 /leaf_info 返回的毫秒时间戳带小数
-	// （`"score_deadline": 1778428740000.0`），而 ParseInt 解析这种写法
-	// 会失败，进而被下面的"解析失败返回 0"吞掉——表现为"截止时间凭空消失"。
-	// 这个 bug 在 v0.6.6 排查"计分课件没被提升"时才被发现（bug #28）。
+	// 必须同时支持整数与浮点：/leaf_info 返回的毫秒时间戳带小数
+	// （`"score_deadline": 1778428740000.0`），ParseInt 会解析失败，
+	// 进而被下面的"失败返回 0"吞掉，表现为截止时间凭空消失。
 	if n, err := strconv.ParseInt(s, 10, 64); err == nil {
 		*f = FlexTime(normalizeEpoch(n))
 		return nil

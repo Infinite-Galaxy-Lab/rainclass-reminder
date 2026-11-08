@@ -1,0 +1,47 @@
+[Unit]
+Description=RainClass Reminder - 长江雨课堂截止提醒助手
+Documentation=https://github.com/infinite-galaxy/rainclass-reminder
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# 建议创建专用用户：sudo useradd --system --home /var/lib/rainclass-reminder --shell /usr/sbin/nologin ykt
+User=ykt
+Group=ykt
+
+ExecStart=/usr/local/bin/rainclass-reminder run
+
+Environment=YKT_CONFIG=/etc/rainclass-reminder/config.yaml
+Environment=YKT_DATA_DIR=/var/lib/rainclass-reminder
+
+# 密钥通过环境变量注入（推荐），或写在 0600 的 EnvironmentFile 中
+# Environment=YKT_FEISHU_WEBHOOK=https://open.feishu.cn/open-apis/bot/v2/hook/xxx
+EnvironmentFile=-/etc/rainclass-reminder/env
+
+WorkingDirectory=/var/lib/rainclass-reminder
+
+Restart=always
+RestartSec=10s
+
+# 优雅停止：程序收到 SIGTERM 后完成当前轮次
+KillSignal=SIGTERM
+TimeoutStopSec=30s
+
+# 安全加固
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/rainclass-reminder
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=rainclass-reminder
+
+[Install]
+WantedBy=multi-user.target

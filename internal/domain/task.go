@@ -45,12 +45,11 @@ func (t TaskType) Label() string {
 	}
 }
 
-// HasDeadline 表示该类型是否天然存在"截止时间"概念。
+// HasDeadline 表示该类型是否天然存在截止时间概念。
 // 课堂类通常只有开课时间，因此单独走开课提醒。
 //
-// 视频/课件（TaskVideo）刻意排除：实测雨课堂给这类节点填的
-// score_deadline 是"整门课程的结束时间"（如 01-31 23:59），
-// 若按它提醒，期末会一次性涌出上百条无意义通知。
+// TaskVideo 刻意排除：雨课堂给这类节点填的 score_deadline 是整门课程的
+// 结束时间，若按它提醒，期末会一次性涌出上百条无意义通知。
 func (t TaskType) HasDeadline() bool {
 	switch t {
 	case TaskHomework, TaskExam, TaskDiscuss:

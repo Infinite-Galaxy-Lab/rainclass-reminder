@@ -8,15 +8,15 @@ import (
 	"os"
 	"time"
 
-	"github.com/2963609262/ykt-reminder/internal/auth"
-	"github.com/2963609262/ykt-reminder/internal/config"
-	"github.com/2963609262/ykt-reminder/internal/qrutil"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/auth"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/config"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/qrutil"
 )
 
 // cmdAuth 管理登录态：import / login / status / clear。
 func cmdAuth(ctx context.Context, cfg config.Config, args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, `用法: ykt-reminder auth <import|login|status|clear> [选项]`)
+		fmt.Fprintln(stderr, `用法: rainclass-reminder auth <import|login|status|clear> [选项]`)
 		return 2
 	}
 	sub := args[0]
@@ -80,7 +80,7 @@ func authImport(cfg config.Config, args []string, stdout, stderr io.Writer) int 
 
 	fmt.Fprintf(stdout, "已保存登录态（%s）\n", c.Redacted())
 	fmt.Fprintf(stdout, "配置文件：%s\n", store.Path())
-	fmt.Fprintln(stdout, "\n下一步：执行 `ykt-reminder tasks` 验证是否可用。")
+	fmt.Fprintln(stdout, "\n下一步：执行 `rainclass-reminder tasks` 验证是否可用。")
 	return 0
 }
 
@@ -196,7 +196,7 @@ func authStatus(ctx context.Context, cfg config.Config, stdout, stderr io.Writer
 	info, err := app.Client.BasicInfo(ctx)
 	if err != nil {
 		fmt.Fprintf(stdout, "失败（%v）\n", authErrorHint(err))
-		fmt.Fprintln(stdout, "\n请重新登录：ykt-reminder auth login")
+		fmt.Fprintln(stdout, "\n请重新登录：rainclass-reminder auth login")
 		return 1
 	}
 	name := info.Nickname.String()

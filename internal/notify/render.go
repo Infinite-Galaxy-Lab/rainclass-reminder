@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/2963609262/ykt-reminder/internal/domain"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/domain"
 )
 
 // 本文件负责"领域对象 → 通知文案"的渲染。
@@ -89,7 +89,7 @@ func RenderAuthExpired(webUIAddr string) Message {
 	if webUIAddr != "" {
 		md += fmt.Sprintf("请打开本地面板重新扫码：http://%s\n\n", webUIAddr)
 	}
-	md += "或在终端执行：`ykt-reminder auth login`"
+	md += "或在终端执行：`rainclass-reminder auth login`"
 	return Message{
 		Title:    "🔑 需要重新登录雨课堂",
 		Markdown: md,

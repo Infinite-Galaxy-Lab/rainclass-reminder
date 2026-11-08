@@ -25,7 +25,7 @@ type Session interface {
 
 // CookieObserver 接收服务端下发的 Set-Cookie。
 //
-// 回调只收 name/value，不把 Domain/Path 语义带进存储层——我们只访问一个站点。
+// 回调只收 name/value，不把 Domain/Path 语义带进存储层。
 type CookieObserver interface {
 	ObserveCookie(name, value string) error
 }
@@ -41,21 +41,16 @@ func (c *Client) observe(resp *http.Response) {
 			continue
 		}
 		if err := obs.ObserveCookie(sc.Name, sc.Value); err != nil {
-			// 回写失败不该影响抓取：内存里的登录态依然是可用的。
+			// 回写失败不影响抓取：内存里的登录态依然可用。
 			c.log.Warn("登录态回写失败", "cookie", sc.Name, "err", err)
 		}
 	}
 }
 
-// sessionBox 让 atomic.Pointer 能持有接口值。
-//
-// atomic.Pointer 的元素必须是指针类型，不能直接存接口，
-// 因此把 Session 包一层。nil 的 Session 用 nil box 表示。
+// sessionBox 让 atomic.Pointer 能持有接口值（它的元素必须是指针类型）。
 type sessionBox struct{ s Session }
 
-// Client 是雨课堂只读 API 客户端。
-//
-// 并发安全：内部用信号量与全局限速控制，可被多 goroutine 共享。
+// Client 是雨课堂只读 API 客户端，可被多 goroutine 共享。
 type Client struct {
 	baseURL   string
 	identity  int
@@ -66,9 +61,8 @@ type Client struct {
 	authHTTP *http.Client
 	sem      chan struct{}
 	log      *slog.Logger
-	// session 用原子指针持有：applyHeaders 在并发请求里读，
-	// SetSession 可能在扫码登录后从另一个 goroutine 写。
-	// 用 box 包一层是因为 atomic.Pointer 只能存指针。
+	// session 用原子指针持有：applyHeaders 并发读，SetSession 可能从
+	// 另一个 goroutine 写。
 	session atomic.Pointer[sessionBox]
 
 	// 章节树缓存（按 classroom_id）。
@@ -76,37 +70,28 @@ type Client struct {
 	chapterCache map[string]chapterCacheEntry
 	chapterTTL   time.Duration
 
-	// 详情缓存（按 classroom_id + leafinfo_id）。
-	//
-	// 详情接口是一轮里请求量最大的一环。截止时间与完成状态在短时间内
-	// 变化极小，缓存后请求量可降八成以上。
-	detailMu    sync.Mutex
-	detailCache map[string]detailCacheEntry
-	detailTTL   time.Duration
-	// detailTTLTiers 按"距截止还剩多久"分档的详情缓存时长（有序，Within 升序）。
+	// 详情缓存（按 classroom_id + leafID）。详情是一轮里请求量最大的一环，
+	// 而截止时间在短时间内变化极小，缓存能降八成以上请求。
+	detailMu       sync.Mutex
+	detailCache    map[string]detailCacheEntry
+	detailTTL      time.Duration
 	detailTTLTiers []CacheTier
 
-	// 学习日志缓存（按 classroom_id）。
-	//
-	// 学习日志用于补全考试/习题的真实 ID（courseware_id）。
-	// 它每门课一次请求、最多翻 2 页，比逐叶子拉详情便宜得多，
-	// 因此 TTL 给得比较长：ID 一旦生成基本不会变。
+	// 学习日志缓存（按 classroom_id）。每门课一次请求、最多翻两页，
+	// 比逐叶子拉详情便宜得多，ID 一旦生成也基本不变，因此 TTL 给得长。
 	logMu    sync.Mutex
 	logCache map[string]logCacheEntry
 	logTTL   time.Duration
 
-	// 全局限速器：保证任意两个请求之间至少间隔 gap。
-	//
-	// 并发信号量只限制"同时几个在飞"，并不能阻止 4 个请求一起打到对端。
-	// 这里再加一道节流，把流量摊平成稳定的低频，降低被风控的概率。
+	// 全局限速：并发信号量只限制"同时几个在飞"，挡不住 4 个请求一起打到
+	// 对端。这里再加一道节流把流量摊平，降低被风控的概率。
 	paceMu   sync.Mutex
 	lastSend time.Time
 	gap      time.Duration
 }
 
 // CacheTier 是"距截止 ≤ Within 时，缓存 TTL 用 TTL"的一档。
-//
-// 用 Within=0 表示兜底档（永远命中）。
+// Within=0 表示兜底档。
 type CacheTier struct {
 	Within time.Duration
 	TTL    time.Duration
@@ -123,12 +108,9 @@ type Options struct {
 	// DetailTTL 是叶子详情缓存时长；<=0 时用 60m。
 	DetailTTL time.Duration
 	// LearnLogTTL 是学习日志缓存时长；<=0 时用 6h。
-	//
-	// 学习日志用来补全考试/习题的真实 ID（courseware_id）。
-	// ID 一旦生成基本不变，长 TTL 可以省掉大量重复请求。
 	LearnLogTTL time.Duration
-	// DetailTTLTiers 按"距截止还剩多久"分档缓存详情，越近的刷得越勤。
-	// 为空时退化为全部使用 DetailTTL。
+	// DetailTTLTiers 按距截止远近分档缓存详情，越近刷得越勤。
+	// 为空时全部使用 DetailTTL。
 	DetailTTLTiers []CacheTier
 	// MinRequestGap 是全局请求最小间隔；<=0 时用 300ms。
 	MinRequestGap time.Duration
@@ -139,13 +121,10 @@ type Options struct {
 
 // New 构造客户端。
 //
-// 两个 http.Client 是刻意分开的（bug #20）：
-//   - api：不带 cookie jar。登录态由 Session.Apply 手工写进 Cookie 头，
-//     如果再挂一个 jar，jar 里吸收的 Set-Cookie 会被 net/http 追加到
-//     同一个 Cookie 头上，导致 `sessionid=...; csrftoken=新; csrftoken=旧`
-//     这类重复 cookie，服务端取到哪一个完全看实现。
-//   - authFlow：带 jar。扫码登录需要跨步骤携带 csrftoken，这里必须让
-//     标准库自动管理 cookie。
+// 两个 http.Client 刻意分开：api 不带 cookie jar，登录态完全由
+// Session.Apply 写入；authFlow 带 jar，因为扫码登录需要跨步骤自动携带
+// csrftoken。若给 api 也挂 jar，jar 里吸收的 Set-Cookie 会被 net/http
+// 追加到同一个 Cookie 头，产生重复 cookie。
 func New(opts Options) (*Client, error) {
 	if opts.BaseURL == "" {
 		return nil, fmt.Errorf("baseURL 不能为空")
@@ -268,11 +247,11 @@ func (c *Client) getJSON(ctx context.Context, path string, query url.Values, out
 	return c.getJSONScoped(ctx, path, query, "", out)
 }
 
-// getJSONScoped 是 getJSON 的带作用域版本，extraHeader 非空时附加 classroom-id。
+// getJSONScoped 是 getJSON 的带作用域版本，classroomID 非空时附加
+// classroom-id 请求头。
 //
-// 为什么需要这个：/leaf_info/{cid}/{id}/ 在不带 classroom-id 头时返回
-// HTTP 200 + {"error_code":40000,"msg":"CLASSROOM ID IS REQUIRED"}，
-// 属于"HTTP 成功但业务失败"，只看状态码会误判为正常。
+// /leaf_info 缺这个头时返回 HTTP 200 但 error_code=40000，属于
+// "HTTP 成功但业务失败"，只看状态码会误判为正常。
 func (c *Client) getJSONScoped(ctx context.Context, path string, query url.Values, classroomID string, out any) error {
 	select {
 	case c.sem <- struct{}{}:

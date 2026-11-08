@@ -14,12 +14,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/2963609262/ykt-reminder/internal/auth"
-	"github.com/2963609262/ykt-reminder/internal/config"
-	"github.com/2963609262/ykt-reminder/internal/notify"
-	"github.com/2963609262/ykt-reminder/internal/qrutil"
-	"github.com/2963609262/ykt-reminder/internal/store"
-	"github.com/2963609262/ykt-reminder/internal/ykt"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/auth"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/config"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/notify"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/qrutil"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/store"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/ykt"
 )
 
 //go:embed assets/index.html assets/app.js assets/style.css

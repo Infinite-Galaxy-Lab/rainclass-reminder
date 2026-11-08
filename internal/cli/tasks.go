@@ -8,8 +8,8 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/2963609262/ykt-reminder/internal/config"
-	"github.com/2963609262/ykt-reminder/internal/domain"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/config"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/domain"
 )
 
 // cmdTasks 拉取并打印当前任务，用于人工核对数据准确性。
@@ -29,7 +29,7 @@ func cmdTasks(ctx context.Context, cfg config.Config, args []string, stdout, std
 	defer app.Close()
 
 	if !app.Auth.Valid() {
-		fmt.Fprintln(stderr, `尚未登录。请执行：ykt-reminder auth import --cookie "sessionid=...; csrftoken=..."`)
+		fmt.Fprintln(stderr, `尚未登录。请执行：rainclass-reminder auth import --cookie "sessionid=...; csrftoken=..."`)
 		return 1
 	}
 

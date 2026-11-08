@@ -9,9 +9,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/2963609262/ykt-reminder/internal/config"
-	"github.com/2963609262/ykt-reminder/internal/scheduler"
-	"github.com/2963609262/ykt-reminder/internal/webui"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/config"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/scheduler"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/webui"
 )
 
 // cmdRun 启动常驻服务。
@@ -32,9 +32,9 @@ func cmdRun(ctx context.Context, cfg config.Config, args []string, stdout, stder
 
 	if !app.Auth.Valid() {
 		fmt.Fprintln(stderr, "尚未登录。请先执行：")
-		fmt.Fprintln(stderr, `  ykt-reminder auth import --cookie "sessionid=...; csrftoken=..."`)
+		fmt.Fprintln(stderr, `  rainclass-reminder auth import --cookie "sessionid=...; csrftoken=..."`)
 		fmt.Fprintln(stderr, "或：")
-		fmt.Fprintln(stderr, "  ykt-reminder auth login")
+		fmt.Fprintln(stderr, "  rainclass-reminder auth login")
 		return 1
 	}
 

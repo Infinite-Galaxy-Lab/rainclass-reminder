@@ -13,7 +13,7 @@ import (
 
 	"github.com/mdp/qrterminal/v3"
 
-	// 注册 JPEG 解码器：微信二维码接口实测返回 JPEG 而非 PNG。
+	// 注册 JPEG 解码器：微信二维码接口返回 JPEG 而非 PNG。
 	_ "image/jpeg"
 )
 

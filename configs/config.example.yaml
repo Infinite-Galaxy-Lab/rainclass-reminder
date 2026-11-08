@@ -1,8 +1,8 @@
-# 长江雨课堂 · 截止提醒助手 配置示例
+# RainClass Reminder · 长江雨课堂截止提醒助手 配置示例
 #
 # 复制到平台默认位置后修改：
-#   Windows: %AppData%\ykt-reminder\config.yaml
-#   Linux/macOS: ~/.config/ykt-reminder/config.yaml
+#   Windows: %AppData%\rainclass-reminder\config.yaml
+#   Linux/macOS: ~/.config/rainclass-reminder/config.yaml
 #
 # 也可以用 --config 指定任意路径。
 # 所有字段都有默认值，最小配置只需要填 notify.feishu.webhook。

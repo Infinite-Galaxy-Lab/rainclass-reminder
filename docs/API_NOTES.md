@@ -4,7 +4,7 @@
 >
 > **重要**：以下结构基于 2026-11 真实账号验证（33 门课程、363 个叶子）。
 > 公开资料里的字段名（`data.chapters`、`leaf_id`）与本实例实际不符，
-> 请以本文为准；接口变更时用 `ykt-reminder probe` 重新取证。
+> 请以本文为准；接口变更时用 `rainclass-reminder probe` 重新取证。
 
 ---
 
@@ -219,7 +219,7 @@ Header: xtbz: ykt
 
 ## 接口变更排查流程
 
-1. `ykt-reminder probe --out probe_out` → 生成脱敏快照
+1. `rainclass-reminder probe --out probe_out` → 生成脱敏快照
 2. 快照里看：课程数、每门课 `leaf_types` 分布、任务字段
 3. 若 `leaf_types` 出现新值 → 更新 `leafTypeMap` 或 `classify` 关键词
 4. 若结构变化 → 更新 `dto.go` 的 json tag

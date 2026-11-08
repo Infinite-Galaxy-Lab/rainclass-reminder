@@ -6,46 +6,36 @@ import (
 	"strings"
 )
 
-// DTO 层的职责：只描述"接口返回了什么"，不做业务判断。
+// DTO 层只描述"接口返回了什么"，不做业务判断。转换为 domain.Task 的
+// 逻辑在 mapper.go。
 //
-// 所有标量都用宽容类型（FlexInt/FlexString/FlexTime）接收，
-// 因为雨课堂在不同课程/版本下会给出不同类型。转换为 domain.Task
-// 的逻辑统一在 mapper.go。
-//
-// 字段结构以真实响应为准，与公开资料的差异：
-//   - 课程列表在 data.list（不是 data.courses）
-//   - 章节树在 data.course_chapter[].section_leaf_list[]
-//   - 叶子用 id 标识，leafinfo_id 是另一个概念
-//   - 时间戳为毫秒
+// 标量一律用宽容类型接收，因为雨课堂在不同课程/版本下会给出不同类型。
+// 字段结构以真实响应为准，与公开资料的差异：课程列表在 data.list、
+// 章节树在 data.course_chapter[].section_leaf_list[]、时间戳为毫秒。
 
 // APIEnvelope 是雨课堂大多数接口的统一信封。
 //
-// 实测两种格式：
+// 成功：{"success": true, "data": {...}}
+// 失败：{"code": 50000, "msg": "UNAUTHENTICATED", "data": ""}
 //
-//	成功：{"success": true, "data": {...}}
-//	失败：{"code": 50000, "msg": "UNAUTHENTICATED", "data": ""}
-//
-// 失败格式与成功格式有三处差异，都要单独处理：
-// 错误码字段叫 code 而非 errcode，data 可能是空字符串而非对象，
-// code=50000 表示未认证。
+// 失败格式与成功有三处差异，都要单独处理：错误码叫 code 而非 errcode，
+// data 可能是空字符串而非对象，code=50000 表示未认证。
 type APIEnvelope[T any] struct {
-	// Success 是 JSON 布尔。用 FlexBool 而非 FlexInt，否则 true/false
-	// 都会被读成 0，无法判断服务端是否明确报错。
+	// 用 FlexBool 而非 FlexInt，否则 true/false 都会被读成 0。
 	Success FlexBool   `json:"success"`
 	ErrCode FlexInt    `json:"errcode"`
 	ErrMsg  FlexString `json:"errmsg"`
 
-	// Code / Msg 是失败格式使用的字段名。
 	Code FlexInt    `json:"code"`
 	Msg  FlexString `json:"msg"`
 
-	// ErrorCode 是 /mooc-api/* 系列使用的错误码字段名。
+	// ErrorCode 是 /mooc-api/* 系列的错误码字段名。
 	// 缺了它，{"success":false,"error_code":40000} 会被判定为成功。
 	ErrorCode FlexInt `json:"error_code"`
 
 	Data T `json:"data"`
 
-	// successSet 记录 success 字段是否真的出现过（JSON 层未导出）。
+	// 记录 success 字段是否真的出现过（JSON 层未导出）。
 	successSet bool
 }
 
@@ -91,15 +81,12 @@ func (e *APIEnvelope[T]) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// OK 判断业务层是否成功。
-//
-// 三个错误码字段都要看：errcode / code 是部分接口的写法，
-// error_code 是 /mooc-api/* 系列的写法。success 显式为 false 时一律失败。
+// OK 判断业务层是否成功。三个错误码字段都要看，success 显式 false 也算失败。
 func (e APIEnvelope[T]) OK() bool {
 	if e.ErrCode.Int64() != 0 || e.Code.Int64() != 0 || e.ErrorCode.Int64() != 0 {
 		return false
 	}
-	// successSet 用来区分"明确返回 false"与"根本没这个字段"。
+	// successSet 区分"明确返回 false"与"根本没这个字段"。
 	if e.successSet && !e.Success.Bool() {
 		return false
 	}
@@ -114,10 +101,8 @@ func (e APIEnvelope[T]) Message() string {
 	return e.Msg.String()
 }
 
-// IsAuthFailure 判断该响应是否表示未登录或登录失效。
-//
-// 雨课堂用 code=50000 + msg=UNAUTHENTICATED 表达这个语义，
-// 且走 HTTP 200，只能在业务层识别。
+// IsAuthFailure 判断该响应是否表示未登录。雨课堂用 code=50000 表达这个
+// 语义且走 HTTP 200，只能在业务层识别。
 func (e APIEnvelope[T]) IsAuthFailure() bool {
 	if e.Code.Int64() == 50000 {
 		return true
@@ -126,10 +111,7 @@ func (e APIEnvelope[T]) IsAuthFailure() bool {
 	return strings.Contains(msg, "unauthenticated") || strings.Contains(msg, "not login")
 }
 
-// envelopeErr 把失败的信封转成统一错误类型。
-//
-// 集中在这里，所有接口方法都调它，就不会漏掉
-// "code=50000 应映射为 ErrAuthExpired"这条规则。
+// envelopeErr 把失败的信封转成统一错误类型，集中在各处调用以免漏掉规则。
 func envelopeErr[T any](env APIEnvelope[T]) error {
 	if env.OK() {
 		return nil
@@ -148,16 +130,14 @@ type BasicInfoData struct {
 	School   FlexString `json:"school"`
 }
 
-// CourseListData 是课程列表的 data 段。
-//
-// 实测为 {"list": [...]}；同时兼容 courses / classroom_list 两个历史字段。
+// CourseListData 是课程列表的 data 段，兼容三个历史字段名。
 type CourseListData struct {
 	List          []CourseItem `json:"list"`
 	Courses       []CourseItem `json:"courses"`
 	ClassroomList []CourseItem `json:"classroom_list"`
 }
 
-// Items 返回实际课程列表（合并三种可能的字段）。
+// Items 合并三种可能的字段并按 classroom_id 去重。
 func (d CourseListData) Items() []CourseItem {
 	out := make([]CourseItem, 0, len(d.List)+len(d.Courses)+len(d.ClassroomList))
 	out = append(out, d.List...)
@@ -166,7 +146,6 @@ func (d CourseListData) Items() []CourseItem {
 	return dedupeCourses(out)
 }
 
-// dedupeCourses 按 classroom_id 去重（防止同一课程在多个字段里重复出现）。
 func dedupeCourses(in []CourseItem) []CourseItem {
 	seen := make(map[string]bool, len(in))
 	out := make([]CourseItem, 0, len(in))
@@ -185,8 +164,6 @@ func dedupeCourses(in []CourseItem) []CourseItem {
 }
 
 // CourseItem 是一门课程（课堂）。
-//
-// 实测字段：classroom_id 为数字，name 为课程名，teacher.name 为教师名。
 type CourseItem struct {
 	ClassroomID FlexString `json:"classroom_id"`
 	CourseID    FlexString `json:"course_id"`
@@ -194,8 +171,7 @@ type CourseItem struct {
 	ShortName   FlexString `json:"short_name"`
 	ClassName   FlexString `json:"class_name"`
 	Title       FlexString `json:"title"`
-	// Teacher 是教师信息（用于 UI 展示，不影响任务）。
-	Teacher struct {
+	Teacher     struct {
 		Name FlexString `json:"name"`
 	} `json:"teacher"`
 }
@@ -211,15 +187,6 @@ func (c CourseItem) DisplayName() string {
 }
 
 // ChapterData 是章节树的 data 段。
-//
-//	{
-//	  "course_id": 3427311,
-//	  "course_name": "2026“AI+信息素养”大赛",
-//	  "course_chapter": [
-//	    {"id": 6516468, "name": "未分类教学活动", "order": -1,
-//	     "section_leaf_list": [ {叶子...}, ... ]}
-//	  ]
-//	}
 type ChapterData struct {
 	CourseID      FlexString    `json:"course_id"`
 	CourseName    FlexString    `json:"course_name"`
@@ -248,18 +215,12 @@ type ChapterNode struct {
 	StartTime     FlexTime   `json:"start_time"`
 	Status        FlexString `json:"status"`
 	HaveRead      FlexInt    `json:"have_read"`
-	// ChapterID 是叶子所属章的 id。ai-workspace 的 forum 路由需要
-	// node_id 查询参数，那个值取的就是它。
+	// forum 路由的 node_id 查询参数取的就是 chapter_id。
 	ChapterID FlexString `json:"chapter_id"`
 	Exam      *ExamMeta  `json:"exam"`
 }
 
 // LeafNode 是叶子（任务节点）。
-//
-//	{"id": 49195196, "leafinfo_id": 49197417, "leaf_type": 5,
-//	 "name": "...", "start_time": 1790070110000, "end_time": 0,
-//	 "score_deadline": 1821628799000, "is_show": true, "is_locked": false,
-//	 "is_score": true, "exam": {...}, "chapter_id": 6516468}
 type LeafNode struct {
 	// ID 是叶子节点 ID，网页端路由与详情接口都用它。
 	ID FlexString `json:"id"`
@@ -274,22 +235,12 @@ type LeafNode struct {
 	StartTime     FlexTime `json:"start_time"`
 
 	ChapterID FlexString `json:"chapter_id"`
-	// SectionID 是所属"节"的 ID。很多课程是「章 → 节 → 叶子」三层，
-	// section_leaf_list 里的条目可能是"节"本身（leaf_type=0、
-	// 无 leafinfo_id），真正的叶子在它的 LeafList 里。
+	// SectionID 是所属"节"的 ID。课程可能是「章 → 节 → 叶子」三层。
 	SectionID FlexString `json:"section_id"`
 	Order     FlexInt    `json:"order"`
 
-	// LeafList 是"节"下面的真实叶子。
-	//
-	//	section_leaf_list: [
-	//	  { "id": 7669792, "name": "1-1 入门案例",   ← "节"
-	//	    "leaf_type": 0, "leafinfo_id": null,
-	//	    "leaf_list": [{"id":45117527, "leafinfo_id":45119751, ...}, ...]},
-	//	  { "id": 45117533, "leaf_type": 6, ... }   ← 直接是叶子（作业）
-	//	]
-	//
-	// 遍历时必须优先下钻 LeafList，只有它为空时当前节点自己才是叶子。
+	// LeafList 是"节"下面的真实叶子。遍历时必须优先下钻它，
+	// 只有它为空时当前节点自己才是叶子。
 	LeafList []LeafNode `json:"leaf_list"`
 
 	Status   FlexString `json:"status"`
@@ -310,9 +261,6 @@ type ExamMeta struct {
 
 // LearnLogData 是学习日志接口的 data 段。
 //
-//	GET /v2/api/web/logs/learn/{classroom_id}?actype=-1&page=0&offset=20&sort=-1
-//	{"errcode":0,"data":{"activities":[...],"has_more":false,"prev_id":-1}}
-//
 // 这是唯一能拿到考试/习题真实 ID 的接口：章节树的 exam.exam_id 全站为空。
 type LearnLogData struct {
 	Activities []LearnLogActivity `json:"activities"`
@@ -321,28 +269,19 @@ type LearnLogData struct {
 
 // LearnLogActivity 是一条学习日志（一次课件/试卷交互）。
 type LearnLogActivity struct {
-	// Type 决定详情页路由：
-	//
-	//	4  习题/随堂测验  → /v2/web/quizSummary/{cid}/{id}
-	//	5  考试          → /v2/web/exam/{cid}/{id}
-	//	9  公告          （不是任务）
-	//	14 视频/课件      （走章节里的节点 id）
+	// Type 决定详情页路由：4 习题、5 考试、9 公告、14 视频。
 	Type FlexInt `json:"type"`
 	// ID 是这条日志本身的 ID，不是试卷 ID。
 	ID FlexInt `json:"id"`
 	// CoursewareID 是试卷/考试的真实 ID，即网页端路由里的那一段。
-	//
-	//	模拟题1     type=5  courseware_id=2051258 → /v2/web/exam/{cid}/2051258
-	//	T1.1.4 PN结 type=4  courseware_id=1745475 → /v2/web/quizSummary/{cid}/1745475
 	CoursewareID FlexString `json:"courseware_id"`
 	Title        FlexString `json:"title"`
 	CreateTime   FlexTime   `json:"create_time"`
 	Deadline     FlexTime   `json:"deadline"`
 	TotalScore   FlexInt    `json:"total_score"`
 	ProblemCount FlexInt    `json:"problem_count"`
-	// Status 是完成状态：0/1 未完成、3 已完成。
-	// 用 OptInt 而非 FlexInt，因为 status=0 是合法取值，
-	// 必须与"字段缺失"区分开。
+	// 完成状态：0/1 未完成、3 已完成。用 OptInt 而非 FlexInt，
+	// 因为 0 是合法取值，必须与"字段缺失"区分开。
 	Status OptInt  `json:"status"`
 	Score  FlexInt `json:"score"`
 }

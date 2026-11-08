@@ -83,9 +83,8 @@ type IntervalTier struct {
 
 // UnmarshalYAML 宽容解析时长字段。
 //
-// 为什么需要：time.Duration 只接受 "30m" 这类带单位的字符串，
-// 而兜底档天然要写 `within: 0`（裸数字），直接反序列化会报
-// "cannot unmarshal !!int 0 into time.Duration"，配置一改就启动失败。
+// time.Duration 只接受 "30m" 这类带单位字符串，而兜底档天然要写
+// `within: 0`（裸数字），直接反序列化会让配置加载失败。
 func (t *IntervalTier) UnmarshalYAML(value *yaml.Node) error {
 	var raw struct {
 		Within   flexDuration `yaml:"within"`
@@ -480,14 +479,41 @@ func (c *Config) FeishuReady() bool {
 	return strings.TrimSpace(c.Notify.Feishu.Webhook) != ""
 }
 
-// DefaultConfigDir 返回平台默认配置目录。
+// DefaultConfigDir 返回平台默认配置目录（config.yaml 直接放在这里）。
 func DefaultConfigDir() string {
-	return filepath.Join(osUserConfigDir(), "ykt-reminder")
+	return appBaseDir()
 }
 
 // DefaultDataDir 返回平台默认数据目录。
 func DefaultDataDir() string {
-	return filepath.Join(osUserConfigDir(), "ykt-reminder", "data")
+	return filepath.Join(appBaseDir(), "data")
+}
+
+const (
+	appDirName    = "rainclass-reminder"
+	legacyDirName = "ykt-reminder"
+)
+
+// appBaseDir 返回程序在用户配置目录下的根目录。
+//
+// 项目曾用旧名发布，升级用户的数据（登录态与状态库）在新目录里，因此
+// 首次运行时把旧目录整体改名为新目录。改名失败（例如旧进程仍持有文件）
+// 就继续用旧目录，保证登录态不会因为改名而丢失。
+func appBaseDir() string {
+	base := osUserConfigDir()
+	cur := filepath.Join(base, appDirName)
+	old := filepath.Join(base, legacyDirName)
+
+	if _, err := os.Stat(cur); err == nil {
+		return cur
+	}
+	if _, err := os.Stat(old); err != nil {
+		return cur // 全新安装
+	}
+	if err := os.Rename(old, cur); err == nil {
+		return cur
+	}
+	return old // 改名失败：沿用旧目录，数据不丢
 }
 
 // osUserConfigDir 在三大平台上返回合理位置；失败时退回家目录。

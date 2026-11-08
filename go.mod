@@ -1,4 +1,4 @@
-module github.com/2963609262/ykt-reminder
+module github.com/infinite-galaxy/rainclass-reminder
 
 go 1.23
 

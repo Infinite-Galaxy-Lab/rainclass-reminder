@@ -192,7 +192,7 @@ func (w *Webhook) Send(ctx context.Context, msg Message) error {
 		return err
 	}
 	req.Header.Set("Content-Type", contentType)
-	req.Header.Set("User-Agent", "ykt-reminder/"+Version)
+	req.Header.Set("User-Agent", "rainclass-reminder/"+Version)
 	// 自定义头放在最后，允许覆盖上面的默认值（例如某些服务要求特定 UA）。
 	for k, v := range w.headers {
 		if k = strings.TrimSpace(k); k != "" {

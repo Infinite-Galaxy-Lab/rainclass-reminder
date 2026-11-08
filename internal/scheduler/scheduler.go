@@ -12,9 +12,9 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/2963609262/ykt-reminder/internal/domain"
-	"github.com/2963609262/ykt-reminder/internal/notify"
-	"github.com/2963609262/ykt-reminder/internal/store"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/domain"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/notify"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/store"
 )
 
 // TaskSource 是任务数据源（由 ykt.Client 实现，测试可用假实现）。
@@ -121,14 +121,12 @@ type CycleResult struct {
 	Bootstrapped bool
 }
 
-// bootstrap 在首次运行时把"早已过期的提醒"标记为已处理。
+// bootstrap 在首次运行时把早已过期的提醒标记为已处理。
 //
-// 为什么需要：新装用户第一次启动时，数据库里没有任何推送记录，
-// 于是所有历史任务的过期里程碑都会被判定为"该发未发"，
-// 一次性补发几十上百条"已截止"通知。这显然不是用户想要的。
-//
-// 策略：把 fireAt 早于 now - grace 的里程碑直接记为 suppressed，
-// 但保留最近 grace 窗口内的（刚过期/即将到期的仍应提醒）。
+// 新装用户第一次启动时数据库是空的，所有历史任务的过期里程碑都会被判定
+// 为"该发未发"，一次性补发几十上百条"已截止"通知。
+// 策略是把 fireAt 早于 now - grace 的直接记为 suppressed，
+// 但保留最近 grace 窗口内的。
 func (s *Scheduler) bootstrap(ctx context.Context, tasks []domain.Task, now time.Time) (int, error) {
 	const grace = 24 * time.Hour
 

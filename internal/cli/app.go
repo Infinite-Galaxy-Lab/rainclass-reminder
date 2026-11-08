@@ -14,13 +14,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/2963609262/ykt-reminder/internal/auth"
-	"github.com/2963609262/ykt-reminder/internal/config"
-	"github.com/2963609262/ykt-reminder/internal/domain"
-	"github.com/2963609262/ykt-reminder/internal/notify"
-	"github.com/2963609262/ykt-reminder/internal/scheduler"
-	"github.com/2963609262/ykt-reminder/internal/store"
-	"github.com/2963609262/ykt-reminder/internal/ykt"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/auth"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/config"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/domain"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/notify"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/scheduler"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/store"
+	"github.com/infinite-galaxy/rainclass-reminder/internal/ykt"
 )
 
 // Version 由构建时注入（-ldflags "-X ..."）。
@@ -225,10 +225,7 @@ func (a *App) NewScheduler(dryRun bool) (*scheduler.Scheduler, error) {
 
 // Run 是程序入口：解析子命令并执行。
 //
-// 支持 --config 出现在子命令前后两种写法：
-//
-//	ykt-reminder --config x.yaml tasks
-//	ykt-reminder tasks --config x.yaml
+// --config 可以出现在子命令前后任意位置。
 func Run(args []string, stdout, stderr io.Writer) int {
 	if len(args) < 2 {
 		usage(stderr)
@@ -272,7 +269,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	case "web":
 		return cmdWeb(ctx, cfg, rest, stdout, stderr)
 	case "version":
-		fmt.Fprintf(stdout, "ykt-reminder %s\n", Version)
+		fmt.Fprintf(stdout, "rainclass-reminder %s\n", Version)
 		return 0
 	case "help", "-h", "--help":
 		usage(stdout)
@@ -284,8 +281,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	}
 }
 
-// extractConfigFlag 从参数列表中取出 --config/-config 及其值，
-// 返回配置路径与剩余参数。这样顶层不必解析子命令的 flag。
+// extractConfigFlag 取出 --config/-config 及其值，返回路径与剩余参数。
 func extractConfigFlag(args []string) (string, []string) {
 	var (
 		path string
@@ -309,10 +305,10 @@ func extractConfigFlag(args []string) (string, []string) {
 }
 
 func usage(w io.Writer) {
-	fmt.Fprint(w, `长江雨课堂 · 截止提醒助手
+	fmt.Fprint(w, `RainClass Reminder · 长江雨课堂截止提醒助手
 
 用法:
-  ykt-reminder <子命令> [选项]
+  rainclass-reminder <子命令> [选项]
 
 子命令:
   run       启动常驻提醒服务（默认行为）
@@ -327,15 +323,15 @@ func usage(w io.Writer) {
   --config <path>   指定配置文件
 
 示例:
-  ykt-reminder auth import --cookie "sessionid=xxx; csrftoken=yyy"
-  ykt-reminder auth login
-  ykt-reminder tasks
-  ykt-reminder notify test
-  ykt-reminder run --dry-run
+  rainclass-reminder auth import --cookie "sessionid=xxx; csrftoken=yyy"
+  rainclass-reminder auth login
+  rainclass-reminder tasks
+  rainclass-reminder notify test
+  rainclass-reminder run --dry-run
 
 配置文件默认位置:
-  Windows: %AppData%\ykt-reminder\config.yaml
-  Linux/macOS: ~/.config/ykt-reminder/config.yaml
+  Windows: %AppData%\rainclass-reminder\config.yaml
+  Linux/macOS: ~/.config/rainclass-reminder/config.yaml
 `)
 }
 
@@ -379,7 +375,7 @@ func authErrorHint(err error) error {
 		return nil
 	}
 	if errors.Is(err, ykt.ErrAuthExpired) {
-		return fmt.Errorf("%w\n\n提示：请执行 `ykt-reminder auth import --cookie \"...\"`\n或 `ykt-reminder auth login` 扫码登录", err)
+		return fmt.Errorf("%w\n\n提示：请执行 `rainclass-reminder auth import --cookie \"...\"`\n或 `rainclass-reminder auth login` 扫码登录", err)
 	}
 	return err
 }
