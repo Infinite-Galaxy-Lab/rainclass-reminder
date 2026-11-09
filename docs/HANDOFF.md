@@ -399,3 +399,7 @@ Go 保留当前会话轮询，仍以非零身份认证后加密保存，不将�
 本轮 Go 全量测试、vet、gofmt、Android 29 项合成设备测试、JVM 测试和 lint 通过。
 新增确认链接状态/编码回归及剪贴板回归分别完成 2 项 Go 与 3 项 Android 断言红后恢复绿。
 模拟器测试只用 `.verification.synthetic`，不清真实扫码包的会话；真机授权接受性仍未知。
+
+alpha.8 常规签名包与独立 `login-verification` 包均由干净源码 `aa68700` 重建双 ABI AAR 后产出；
+文件名、校验和和证书边界见 ANDROID。未创建正式 Release，未合入 main。
+已请用户在无 root 真机将确认链接发到微信文件传输助手点开，等待反馈；不要将实验实现标为单手机登录成功。

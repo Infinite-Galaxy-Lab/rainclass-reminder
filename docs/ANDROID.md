@@ -232,3 +232,11 @@ alpha.7 签名包来自干净源码 `0125d92`，versionCode 7，35,507,807 字�
 验证：212 个 Go 测试函数全量通过，vet、gofmt 无输出；Android 29 项合成设备测试、JVM 测试和 lint 通过。
 新增回归的 2 项 Go 与 3 项 Android 实现破坏均取得断言红，恢复后全绿。
 上述检查仅验证应用行为、URL 边界与剪贴板清理，不代表微信接受手动点击确认链接。
+
+alpha.8 产物来自干净源码 `aa68700`，双 ABI AAR 从源码重建，验签与 16 KiB zipalign / ELF 检查通过。
+常规包沿用 alpha.7 证书，实验包使用独立 applicationId 与调试证书，不覆盖常规版数据：
+
+- `dist/android/rainclass-reminder-0.1.0-alpha.8.apk`：35,512,415 字节；SHA-256 `208110b9cb60588cc543a53020672a5f94022ba28600481136947ce3e60e9646`。
+- `dist/android/rainclass-reminder-0.1.0-alpha.8-login-verification.apk`：40,793,496 字节；SHA-256 `8924863468d526a59823e0e1c9d594b49f9cae16f11840f356317892345ab6e7`。
+
+“雨课堂提醒·登录验证”只提供单手机流程验收；真实微信确认结果仍待用户反馈。
