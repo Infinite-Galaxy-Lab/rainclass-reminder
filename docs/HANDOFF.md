@@ -204,7 +204,9 @@ Windows 启动认证失败时现在保留面板与服务，便于重登；`--onc
 交付 `dist/android/rainclass-reminder-0.1.0-alpha.3.apk`，35,271,791 字节，SHA-256：
 `55f64354257952fb52795ce4954a26cd84ab22f68a6237dd9ad92e5541516879`。
 沿用原内测签名、versionCode 3，验签与 16 KiB zipalign 通过，MuMu 从 alpha.2 覆盖升级并启动。
-Go 核心未变化，复用 alpha.2 干净提交生成的 AAR；本轮不以旧 CI 代表新提交，最新结果以 Actions 为准。
+Go 核心未变化，复用 alpha.2 干净提交生成的 AAR；源码提交 `4ca6faf` 的工作区干净重建与交付包
+哈希一致，构建信息和独立备份已保存。Android CI `42556426484` 对该提交的 Linux AAR、debug APK
+和 lint 全部通过，设备回归来自本机模拟器。文档跟进提交不改变 APK 对应源码。
 
 下轮按以下顺序继续：
 
