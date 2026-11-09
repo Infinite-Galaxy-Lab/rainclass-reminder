@@ -1,10 +1,21 @@
 import json
+import subprocess
+import sys
 import tempfile
+import time
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest import mock
 
-from observe_browser import append_event, capture_end, event, validate_cdp
+from observe_browser import (
+    ObserverLockUnavailable,
+    append_event,
+    capture_end,
+    event,
+    output_directory_lock,
+    validate_cdp,
+)
 
 
 class BrowserObservationTests(unittest.TestCase):
@@ -41,6 +52,88 @@ class BrowserObservationTests(unittest.TestCase):
             self.assertEqual(data['endpoint'], 'auth')
             self.assertEqual(data['outcome'], 'upstream')
             self.assertEqual(data['duration_ms'], 0)
+
+    def test_lock_file_is_retained_and_released(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            lock_path = directory / 'browser-observer.lock'
+            with output_directory_lock(directory):
+                self.assertEqual(lock_path.stat().st_size, 1)
+            self.assertTrue(lock_path.exists())
+            with output_directory_lock(directory):
+                pass
+
+    def test_lock_released_after_body_exception(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            with self.assertRaisesRegex(RuntimeError, 'body failed'):
+                with output_directory_lock(directory):
+                    raise RuntimeError('body failed')
+            with output_directory_lock(directory):
+                pass
+
+    def test_cross_process_lock_contention_and_reacquire(self):
+        module_directory = str(Path(__file__).resolve().parent)
+        child_code = """
+import sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[3])
+from observe_browser import output_directory_lock
+with output_directory_lock(Path(sys.argv[1])):
+    Path(sys.argv[2]).write_text('ready', encoding='ascii')
+    sys.stdin.readline()
+"""
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            ready = directory / 'child-ready'
+            process = subprocess.Popen(
+                [sys.executable, '-c', child_code, str(directory), str(ready), module_directory],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            try:
+                deadline = time.monotonic() + 5
+                while not ready.exists():
+                    if process.poll() is not None:
+                        _, stderr = process.communicate()
+                        self.fail('lock holder exited before ready: ' + stderr)
+                    if time.monotonic() >= deadline:
+                        self.fail('timed out waiting for lock holder')
+                    time.sleep(0.01)
+
+                with self.assertRaises(ObserverLockUnavailable):
+                    with output_directory_lock(directory):
+                        pass
+
+                _, stderr = process.communicate(input='\n', timeout=5)
+                self.assertEqual(process.returncode, 0, stderr)
+                with output_directory_lock(directory):
+                    pass
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                    process.communicate()
+
+    def test_non_lock_permission_error_is_not_reported_as_contention(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            denied = PermissionError(13, 'permission denied')
+            with mock.patch.object(Path, 'open', side_effect=denied):
+                with self.assertRaises(PermissionError) as raised:
+                    with output_directory_lock(directory):
+                        pass
+            self.assertNotIsInstance(raised.exception, ObserverLockUnavailable)
+
+    def test_existing_lock_file_is_not_truncated(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            lock_path = directory / 'browser-observer.lock'
+            lock_path.write_bytes(b'existing')
+            with output_directory_lock(directory):
+                pass
+            self.assertEqual(lock_path.read_bytes(), b'existing')
 
 
 if __name__ == '__main__':

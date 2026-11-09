@@ -68,7 +68,8 @@ python tools/observe_report.py $settings.observation_dir
 
 首次准备在仓库外虚拟环境安装 Playwright；不需要由 Playwright 下载浏览器，使用本机 Edge：
 
-本机上述 runtime 内已准备好虚拟环境及 Playwright；官方窗口尚需用户手动打开并登录。
+本机上述 runtime 内已准备好虚拟环境及 Playwright。用户已在专用 Edge 登录并刷新，
+2026-11-09 11:48 首次确认实际网页请求写入；脚本只挂接已有窗口。
 
 ```powershell
 python -m venv "$env:APPDATA\ykt-reminder\runtime\observer-venv"
@@ -90,7 +91,14 @@ Start-Process -FilePath $edge -WindowStyle Normal -ArgumentList @(
 
 最多记录从首次浏览器采集起的 24h，`browser-window.json` 跨脚本重启保留窗口；关闭浏览器或 Ctrl+C 结束。脚本退出不关闭用户窗口。CDP 能访问浏览器会话，应只绑定回环、使用独立 profile，观察结束关闭该窗口。
 
+连接并注册监听后会显示 `Browser observer connected and listening.`；后续没有新请求时保持安静。
+同一输出目录用跨进程锁保护，第二份脚本会提示已在运行并退出；进程退出后系统释放锁，
+保留的 `browser-observer.lock` 文件不代表仍有进程，不要靠删除锁文件绕过保护。
+
 执行本节命令前先运行上节读取 `$settings` 的命令，工作目录为仓库根目录。
 
-**项目侧观察已取得成功样本；官方网页侧仍需用户手动打开上述专用窗口并登录后运行监听命令。**
-当前没有网页侧记录，不把项目请求当作官方网页全天观察证据。
+**项目与官方网页均已取得实际记录，仍未完成全天观察。** 网页窗口从
+2026-11-09 11:38:34 +08:00 起算，至 2026-11-10 同时刻结束；重新挂接不重置。
+11:48 的报告中网页有 206 条可解析记录、2 行坏行；原始记录保留，报表会跳过坏行。
+相近请求不能仅凭类别与状态相同就判定重复；请求总数也不等于唯一业务操作数。
+Windows 虚拟环境的 Python 启动器和实际子进程可能都显示脚本命令，不能仅按进程数判断重复监听。

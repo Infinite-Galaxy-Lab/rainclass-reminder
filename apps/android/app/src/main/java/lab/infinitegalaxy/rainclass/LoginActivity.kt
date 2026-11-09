@@ -46,7 +46,7 @@ class LoginActivity : ComponentActivity() {
                         TextButton(onClick = { finish() }) { Text("返回") }
                     }, actions = {
                         TextButton(onClick = { webView?.reload() }, enabled = !checking) { Text("重载") }
-                        TextButton(onClick = ::checkSession, enabled = !checking) { Text("已登录") }
+                        TextButton(onClick = ::checkSession, enabled = !checking) { Text(if (checking) "校验中…" else "已登录") }
                     })
                 }) { insets ->
                     Column(Modifier.fillMaxSize().padding(insets)) {
@@ -111,6 +111,7 @@ class LoginActivity : ComponentActivity() {
             return
         }
         checking = true
+        message = "正在校验登录状态，请稍候…"
         lifecycleScope.launch {
             try {
                 (application as RainApplication).repository.authenticate(cookie)

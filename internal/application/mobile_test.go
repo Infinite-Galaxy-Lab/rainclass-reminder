@@ -50,6 +50,7 @@ type fixture struct {
 	status       atomic.Int64
 	deadline     atomic.Int64
 	courseStatus atomic.Int64
+	basicInfoID  atomic.Bool
 	block        atomic.Bool
 	entered      chan struct{}
 	options      ykt.Options
@@ -84,7 +85,11 @@ func newFixture(t *testing.T) *fixture {
 		case r.URL.Path == "/v/course_meta/user_info":
 			fmt.Fprint(w, `{"success":true,"data":{}}`)
 		case r.URL.Path == "/api/v3/user/basic-info":
-			fmt.Fprintf(w, `{"success":true,"data":{"user_id":%d}}`, f.account.Load())
+			if f.basicInfoID.Load() {
+				fmt.Fprintf(w, `{"code":0,"msg":"success","data":{"id":"%d"}}`, f.account.Load())
+			} else {
+				fmt.Fprintf(w, `{"success":true,"data":{"user_id":%d}}`, f.account.Load())
+			}
 		case r.URL.Path == "/v2/api/web/courses/list":
 			if code := f.courseStatus.Load(); code != 0 {
 				w.WriteHeader(int(code))
@@ -293,6 +298,35 @@ func readSnapshot(t *testing.T, m *Mobile) Snapshot {
 }
 
 const syntheticCookie = "sessionid=synthetic-session; csrftoken=synthetic-csrf"
+
+func TestMobileAuthenticatesCurrentBasicInfoID(t *testing.T) {
+	f, dir, vault := newFixture(t), t.TempDir(), &memoryVault{}
+	f.basicInfoID.Store(true)
+	m := openTestMobile(t, dir, vault, &testSink{}, f)
+	if err := m.Authenticate(syntheticCookie); err != nil {
+		t.Fatalf("current basic-info rejected: %v", err)
+	}
+	if _, err := m.Refresh(); err != nil {
+		t.Fatal(err)
+	}
+	if got := readSnapshot(t, m); got.AuthState != "ready" || len(got.Tasks) != 1 {
+		t.Fatalf("authenticated snapshot: %+v", got)
+	}
+	if err := m.Close(); err != nil {
+		t.Fatal(err)
+	}
+	m = openTestMobile(t, dir, vault, &testSink{}, f)
+	if got := readSnapshot(t, m); got.AuthState != "ready" || len(got.Tasks) != 1 {
+		t.Fatal("current account was not preserved across reopen")
+	}
+	var saved credentials
+	if err := json.Unmarshal([]byte(vault.value), &saved); err != nil {
+		t.Fatal(err)
+	}
+	if saved.Account != "101" {
+		t.Fatalf("persisted account = %q", saved.Account)
+	}
+}
 
 func TestMobileRefreshReopenAndSignOut(t *testing.T) {
 	f, dir, vault, sink := newFixture(t), t.TempDir(), &memoryVault{}, &testSink{}

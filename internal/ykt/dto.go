@@ -130,6 +130,23 @@ type BasicInfoData struct {
 	School   FlexString `json:"school"`
 }
 
+func (d *BasicInfoData) UnmarshalJSON(data []byte) error {
+	type fields BasicInfoData
+	var wire struct {
+		fields
+		ID FlexString `json:"id"`
+	}
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+	*d = BasicInfoData(wire.fields)
+	// 当前基本信息接口返回 id，旧版本返回 user_id；应用层只接收统一身份字段。
+	if d.UserID.String() == "" {
+		d.UserID = wire.ID
+	}
+	return nil
+}
+
 // CourseListData 是课程列表的 data 段，兼容三个历史字段名。
 type CourseListData struct {
 	List          []CourseItem `json:"list"`

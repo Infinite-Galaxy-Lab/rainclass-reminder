@@ -1,14 +1,25 @@
 import argparse
 import asyncio
+import errno
 import json
 import os
 import re
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
 
 
 MAX_BYTES = 32 << 20
+LOCK_CONTENTION_ERRNOS = {
+    errno.EACCES,
+    errno.EAGAIN,
+    getattr(errno, 'EWOULDBLOCK', errno.EAGAIN),
+}
+
+
+class ObserverLockUnavailable(RuntimeError):
+    pass
 
 
 def validate_cdp(value):
@@ -91,60 +102,108 @@ def capture_end(directory):
     return started + timedelta(hours=24)
 
 
+def _acquire_lock(stream):
+    try:
+        if os.name == 'nt':
+            import msvcrt
+            msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError as error:
+        if error.errno in LOCK_CONTENTION_ERRNOS:
+            raise ObserverLockUnavailable('Observer output directory is already locked') from error
+        raise
+
+
+def _release_lock(stream):
+    if os.name == 'nt':
+        import msvcrt
+        msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
+    else:
+        import fcntl
+        fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
+
+
+@contextmanager
+def output_directory_lock(directory):
+    directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+    lock_path = directory / 'browser-observer.lock'
+    with lock_path.open('a+b') as stream:
+        stream.seek(0, os.SEEK_END)
+        if stream.tell() == 0:
+            stream.write(b'\0')
+            stream.flush()
+        stream.seek(0)
+        _acquire_lock(stream)
+        try:
+            yield
+        finally:
+            _release_lock(stream)
+
+
 async def observe(cdp, directory):
     from playwright.async_api import async_playwright
 
-    end = capture_end(directory)
-    if datetime.now(timezone.utc) >= end:
-        print('Browser capture window has ended; no connection made.')
-        return
-    pending, contexts = set(), set()
-    failures = 0
-    async with async_playwright() as driver:
-        browser = await driver.chromium.connect_over_cdp(cdp)
+    with output_directory_lock(directory):
+        end = capture_end(directory)
+        if datetime.now(timezone.utc) >= end:
+            print('Browser capture window has ended; no connection made.')
+            return
+        pending, contexts = set(), set()
+        failures = 0
+        async with async_playwright() as driver:
+            browser = await driver.chromium.connect_over_cdp(cdp)
 
-        async def response_received(response):
-            nonlocal failures
-            try:
-                if datetime.now(timezone.utc) >= end or endpoint(response.url) is None:
+            async def response_received(response):
+                nonlocal failures
+                try:
+                    if datetime.now(timezone.utc) >= end or endpoint(response.url) is None:
+                        return
+                    cookies = [header['value'] for header in await response.headers_array()
+                               if header['name'].lower() == 'set-cookie']
+                    duration = response.request.timing.get('responseStart', 0)
+                    append_event(directory, event(response.url, response.request.method,
+                                                  response.status, duration, cookies))
+                except Exception:
+                    failures += 1
+
+            def on_response(response):
+                task = asyncio.create_task(response_received(response))
+                pending.add(task)
+                task.add_done_callback(pending.discard)
+
+            def on_failed(request):
+                nonlocal failures
+                try:
+                    if datetime.now(timezone.utc) < end:
+                        append_event(directory, event(request.url, request.method, 0, 0))
+                except Exception:
+                    failures += 1
+
+            def register_context(context):
+                if context in contexts:
                     return
-                cookies = [header['value'] for header in await response.headers_array()
-                           if header['name'].lower() == 'set-cookie']
-                duration = response.request.timing.get('responseStart', 0)
-                append_event(directory, event(response.url, response.request.method,
-                                              response.status, duration, cookies))
-            except Exception:
-                failures += 1
+                context.on('response', on_response)
+                context.on('requestfailed', on_failed)
+                contexts.add(context)
 
-        def on_response(response):
-            task = asyncio.create_task(response_received(response))
-            pending.add(task)
-            task.add_done_callback(pending.discard)
-
-        def on_failed(request):
-            nonlocal failures
             try:
-                if datetime.now(timezone.utc) < end:
-                    append_event(directory, event(request.url, request.method, 0, 0))
-            except Exception:
-                failures += 1
-
-        try:
-            while browser.is_connected() and datetime.now(timezone.utc) < end:
                 for context in browser.contexts:
-                    if context not in contexts:
-                        context.on('response', on_response)
-                        context.on('requestfailed', on_failed)
-                        contexts.add(context)
-                await asyncio.sleep(min(1, max(0, (end - datetime.now(timezone.utc)).total_seconds())))
-        finally:
-            for context in contexts:
-                context.remove_listener('response', on_response)
-                context.remove_listener('requestfailed', on_failed)
-            if pending:
-                await asyncio.gather(*pending, return_exceptions=True)
-            # 退出 Playwright 会断开 CDP；不调用 browser.close()，避免关闭用户窗口。
-    print(json.dumps({'capture_finished': True, 'skipped_events': failures}))
+                    register_context(context)
+                print('Browser observer connected and listening.', flush=True)
+                while browser.is_connected() and datetime.now(timezone.utc) < end:
+                    for context in browser.contexts:
+                        register_context(context)
+                    await asyncio.sleep(min(1, max(0, (end - datetime.now(timezone.utc)).total_seconds())))
+            finally:
+                for context in contexts:
+                    context.remove_listener('response', on_response)
+                    context.remove_listener('requestfailed', on_failed)
+                if pending:
+                    await asyncio.gather(*pending, return_exceptions=True)
+                # 退出 Playwright 会断开 CDP；不调用 browser.close()，避免关闭用户窗口。
+        print(json.dumps({'capture_finished': True, 'skipped_events': failures}))
 
 
 def main():
@@ -156,6 +215,9 @@ def main():
         asyncio.run(observe(args.cdp, args.output))
     except KeyboardInterrupt:
         return 0
+    except ObserverLockUnavailable:
+        print('Browser observer is already running.', flush=True)
+        return 1
     except Exception:
         print('Observation stopped. Check local CDP, Playwright installation and output permissions.')
         return 1

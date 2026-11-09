@@ -28,7 +28,16 @@
 GET /api/v3/user/basic-info
 ```
 
-响应 `data`：`user_id`、`nickname`、`name`、`school`
+2026-11-09 在 Android 官方 WebView 扫码后确认当前响应形状如下；示例 ID 为合成值：
+
+```json
+{"code":0,"msg":"success","data":{"id":"101","nickname":"示例昵称","name":"示例姓名","school":"示例学校"}}
+```
+
+当前账号字段为 `data.id`，兼容旧版 `data.user_id`，两者均可为数字或字符串。
+DTO 归一为 `BasicInfoData.UserID`；旧字段非空时优先，缺失或 null 时取 `id`。
+移动认证仍要求身份非空且不为零，不能仅凭 HTTP 200 或 Cookie 存在认定登录成功。
+此前只解析 `user_id` 会使已经完成官方扫码的有效会话被移动端拒绝。
 
 用途：每轮开始前确认登录态；失效则发一次性告警。
 

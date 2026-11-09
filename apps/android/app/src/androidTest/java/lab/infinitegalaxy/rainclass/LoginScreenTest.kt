@@ -32,10 +32,20 @@ class LoginScreenTest {
             var web: WebView? = null
             val deadline = System.currentTimeMillis() + 5000
             while (web == null && System.currentTimeMillis() < deadline) {
-                scenario.onActivity { web = findWebView(it.window.decorView) }
+                scenario.onActivity {
+                    web = findWebView(it.window.decorView)
+                    web?.settings?.blockNetworkLoads = true
+                }
                 if (web == null) Thread.sleep(50)
             }
             val view = requireNotNull(web)
+            // 清 Cookie 的异步回调会发起初始导航，等它完成后再装载合成页，避免覆盖测试页面。
+            var initialNavigationStarted = false
+            while (!initialNavigationStarted && System.currentTimeMillis() < deadline) {
+                scenario.onActivity { initialNavigationStarted = view.url != null }
+                if (!initialNavigationStarted) Thread.sleep(50)
+            }
+            assertTrue("initial login navigation did not start", initialNavigationStarted)
             scenario.onActivity {
                 assertTrue("login view collapsed horizontally", view.width > 200 * it.resources.displayMetrics.density)
                 assertTrue("login view collapsed vertically", view.height > 200 * it.resources.displayMetrics.density)
@@ -55,7 +65,7 @@ class LoginScreenTest {
                     <h3 class="L_title">合成登录页</h3><div class="login-box"><div class="mabox"><div class="changeImg"></div><div id="support-socket">
                     <div id="qrcode-box"><div class="logma"></div></div><button>切换登录方式</button></div></div>
                     <div class="agreement-box">合成协议占位</div></div></div></div></body></html>
-                """.trimIndent(), "text/html", "UTF-8", null)
+                """.trimIndent(), "text/html", "UTF-8", "https://changjiang.yuketang.cn/web/")
             }
             var visible = false
             var dimensions = "not loaded"
@@ -73,7 +83,7 @@ class LoginScreenTest {
                                 r.top >= 0 && r.bottom <= innerHeight && r.width >= 200 && r.height >= 200 &&
                                 r.width * visualViewport.scale >= 200 && card.left >= 0 && card.right <= innerWidth &&
                                 (toggle.right <= r.left || toggle.left >= r.right || toggle.bottom <= r.top || toggle.top >= r.bottom);
-                            return {ok, viewport: [innerWidth, innerHeight], qr: r.toJSON(), toggle: toggle.toJSON(), card: card.toJSON()};
+                            return {ok, location: location.origin + location.pathname, style: !!document.getElementById('rainclass-mobile-login'), viewport: [innerWidth, innerHeight], qr: r.toJSON(), toggle: toggle.toJSON(), card: card.toJSON()};
                         })()
                     """.trimIndent()) { result.set(it); done.countDown() }
                 }
