@@ -17,6 +17,9 @@
 回归摘要；alpha.1 / alpha.2 保留。观察切换的设置与任务 XML 在 runtime/rollback，
 请求监测窗口与输出目录以 [OBSERVATION.md](OBSERVATION.md) 和私有 settings.json 为准。
 
+同日 alpha.4 认证修复另存独立备份：源码 bundle、源码归档、APK 与校验和、构建信息、
+AAR 输入核对及回归摘要；旧版 APK 与备份保留。运行数据库和登录会话不混入此源码 / 发行包备份。
+
 ## 本机本轮部署
 
 2026-11-08 已在用户私有目录保存发布前源码 bundle 和工作区快照。2026-11-09 任务进程
