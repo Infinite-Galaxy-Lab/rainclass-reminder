@@ -225,22 +225,19 @@ URL、数据库顺序或提醒策略。`RainScreen` 编排页面；任务卡片�
 
 基本信息的当前 `id` 与旧版 `user_id` 在 `ykt.BasicInfoData` 解码时统一，应用层不判断接口版本。
 移动认证校验归一后的非零身份，再保存加密会话；Cookie 存在或 HTTP 200 不替代身份校验。
-Android 默认扫码由 `application.Login` 封装已有的 `auth.QRLogin`，独立 HTTP client / Cookie jar
-持有五分钟取消上下文，绑定只传图片、等待结果与取消。业务端点仍只有 GET。
-`LoginViewModel` 持有登录任务，普通切后台和页面重建保留任务；退出、换码或释放 ViewModel 时
-取消，旧协程返回后检查取消状态。系统回收进程后的未完成二维码重新获取，不持久化 OAuth 状态。
-原生扫码 Cookie 仍交给既有 `Mobile.Authenticate` 校验身份和加密保存，不凭 Cookie 存在判成功。
-原官方 WebView 登录保留为备用入口，其 Cookie 检查、域名限制和截图支持继续适用。
+Android 默认扫码由 `application.Login` 封装 `auth.QRLogin`。Go 持有 OAuth 二维码轮询和五分钟取消上下文，
+绑定只暴露开始、等待与取消。`LoginViewModel` 在普通切后台和页面重建时保留任务；退出、换码或释放
+ViewModel 时取消，旧协程返回前再检查取消状态。系统回收进程后重新获取二维码，不持久化 OAuth 状态。
 方案依据与边界见 [ADR 0002](adr/0002-android-native-qr-login.md)。
-认证成功通过 Activity Result 通知首页，先显示缓存，再立即同步课程；普通启动仅恢复本地快照。
-alpha.8 只在调试/验证包提供当前二维码的官方确认链接：URL 由 auth 构造，application
-负责会话生命周期校验，绑定薄委托；Android 只处理用户主动复制与敏感剪贴板清理。
-没有把微信协议复制到界面或接入第三方二维码转发服务；该确认链接已由真机反馈不可用。
-alpha.9 的公众号场景实验在独立 `auth.SceneLogin` 实现中完成取码与等待，
-与原扫码共用 application 的取消、过期和结果校验生命周期；Android 只选择会话工厂。
-场景链接与令牌不由应用落盘或记日志；用户主动复制时，链接进入敏感剪贴板，随后可粘贴到微信。
-图片来源限制为官方公众号域名，图片客户端不携带雨课堂 Cookie。
-实验成功仍须有 Cookie 并通过原身份校验；未接入 Bearer 认证，账号登录开发暂缓，见 LOGIN_RESEARCH。
+
+OAuth 成功后，Cookie 仍交给 `Mobile.Authenticate` 做非零身份校验，再写入 Keystore 支持的加密会话存储；
+Cookie 存在或 HTTP 200 不替代身份校验。认证成功通过 Activity Result 通知首页，先显示缓存并立即同步课程；
+普通启动仅恢复本地快照。原官方 WebView 保留为备用入口，其域名限制和 Cookie 检查继续适用，业务端点仍只使用 GET。
+
+历史记录：alpha.8 和 alpha.9 调试包曾提供 OAuth 确认链接与公众号场景链接两个分享入口，
+2026-11-09 用户真机测试均未成功，两个入口已被否定。alpha.10 已移除公众号场景实现、绑定导出和剪贴板入口；
+`API_NOTES.md` 仅把该实验的两个认证端点留作研究记录，应用当前不再调用。账号登录入口继续暂缓；
+微信授权研究尚未解决单台手机上的会话交接。
 
 移动引擎独立持有设备时区，刷新前由 Android 更新；tzdata 仅随绑定模块打包，不改变桌面全局时区。
 Worker 先创建带取消上下文的刷新对象，再登记执行，取消按请求传递到抓取层，覆盖执行前停止的竞争。

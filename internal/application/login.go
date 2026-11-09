@@ -46,27 +46,12 @@ type loginFlow interface {
 }
 
 func NewLogin() (*Login, error) {
-	return newOfficialLogin(false)
-}
-
-func NewPublicAccountLogin() (*Login, error) {
-	return newOfficialLogin(true)
-}
-
-func newOfficialLogin(publicAccount bool) (*Login, error) {
 	client, err := ykt.New(ykt.Options{
 		BaseURL: BaseURL,
 		Logger:  slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})
 	if err != nil {
 		return nil, errLoginFailed
-	}
-	if publicAccount {
-		flow, err := auth.NewSceneLogin(BaseURL, client.HTTPClient())
-		if err != nil {
-			return nil, errLoginFailed
-		}
-		return loginWithFlow(flow, loginTTL, loginPollInterval), nil
 	}
 	return newLogin(BaseURL, client.HTTPClient(), loginTTL, loginPollInterval)
 }
@@ -115,19 +100,6 @@ func (l *Login) Start() ([]byte, error) {
 	l.startReady = true
 	l.mu.Unlock()
 	return code.PNG, nil
-}
-
-func (l *Login) ConfirmationURL() (string, error) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	if err := l.ctx.Err(); err != nil {
-		return "", loginError(l.ctx, err)
-	}
-	if !l.startReady || l.code.UUID == "" {
-		return "", errLoginState
-	}
-	return l.code.ConfirmationURL(), nil
 }
 
 func (l *Login) Wait() (string, error) {
@@ -187,9 +159,6 @@ func loginError(ctx context.Context, err error) error {
 	}
 	if deadline, ok := ctx.Deadline(); ok && !time.Now().Before(deadline) {
 		return errLoginExpired
-	}
-	if errors.Is(err, auth.ErrLoginSessionMissing) {
-		return auth.ErrLoginSessionMissing
 	}
 	return errLoginFailed
 }

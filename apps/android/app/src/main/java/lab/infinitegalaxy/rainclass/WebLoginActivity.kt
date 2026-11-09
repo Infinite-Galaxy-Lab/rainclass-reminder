@@ -59,7 +59,7 @@ class WebLoginActivity : ComponentActivity() {
                 }) { insets ->
                     Column(Modifier.fillMaxSize().padding(insets)) {
                         Text(message, Modifier.padding(horizontal = 20.dp, vertical = 10.dp), style = MaterialTheme.typography.bodySmall)
-                        Text("可截图后到微信「扫一扫 → 相册」识别，也可用另一台设备扫码。确认后返回，将自动检查登录状态。",
+                        Text("微信可能禁止从相册识别登录码。当前扫码方式需另一台设备展示二维码；确认后返回，将自动检查登录状态。",
                             Modifier.padding(horizontal = 20.dp, vertical = 4.dp), style = MaterialTheme.typography.bodySmall)
                         if (checking) LinearProgressIndicator(Modifier.fillMaxWidth())
                         AndroidView(modifier = Modifier.fillMaxWidth().weight(1f), factory = { context ->

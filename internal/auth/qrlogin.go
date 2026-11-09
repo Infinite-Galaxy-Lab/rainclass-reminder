@@ -39,18 +39,6 @@ type QRCode struct {
 	State string
 	// ExpiresAt 是本地估算的过期时间（微信二维码通常 5 分钟）。
 	ExpiresAt time.Time
-
-	confirmationURL string
-}
-
-func (q QRCode) ConfirmationURL() string {
-	if q.confirmationURL != "" {
-		return q.confirmationURL
-	}
-	if q.UUID == "" {
-		return ""
-	}
-	return "https://open.weixin.qq.com/connect/confirm?" + url.Values{"uuid": {q.UUID}}.Encode()
 }
 
 // QRLoginResult 是扫码成功后的结果。

@@ -8,5 +8,4 @@ import lab.infinitegalaxy.rainclass.data.NativeLoginSession
 class RainApplication : Application() {
     val repository by lazy { RainRepository(this) }
     internal var loginSessionFactory: () -> LoginSession = { NativeLoginSession(repository) }
-    internal var publicAccountLoginSessionFactory: () -> LoginSession = { NativeLoginSession(repository, publicAccount = true) }
 }
