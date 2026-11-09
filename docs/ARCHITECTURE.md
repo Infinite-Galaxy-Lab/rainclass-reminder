@@ -225,10 +225,13 @@ URL、数据库顺序或提醒策略。`RainScreen` 编排页面；任务卡片�
 
 基本信息的当前 `id` 与旧版 `user_id` 在 `ykt.BasicInfoData` 解码时统一，应用层不判断接口版本。
 移动认证校验归一后的非零身份，再保存加密会话；Cookie 存在或 HTTP 200 不替代身份校验。
-官方扫码页继续在 WebView 中执行。返回前台自动检查 Cookie，未变化的候选会话最多间隔 3 秒校验
-3 次，避免服务端认证状态晚于 Cookie 写入时永久漏检；前台恢复、页面完成和 Cookie 变化重新开始检查。
-普通后台切换保留 WebView；横竖屏及窗口尺寸变化不重建扫码页。Activity 重建保留网页 Cookie，
-仅新登录流程与结束时清网页数据；系统回收进程后的未完成二维码不保证继续有效。
+Android 默认扫码由 `application.Login` 封装已有的 `auth.QRLogin`，独立 HTTP client / Cookie jar
+持有五分钟取消上下文，绑定只传图片、等待结果与取消。业务端点仍只有 GET。
+`LoginViewModel` 持有登录任务，普通切后台和页面重建保留任务；退出、换码或释放 ViewModel 时
+取消，旧协程返回后检查取消状态。系统回收进程后的未完成二维码重新获取，不持久化 OAuth 状态。
+原生扫码 Cookie 仍交给既有 `Mobile.Authenticate` 校验身份和加密保存，不凭 Cookie 存在判成功。
+原官方 WebView 登录保留为备用入口，其 Cookie 检查、域名限制和截图支持继续适用。
+方案依据与边界见 [ADR 0002](adr/0002-android-native-qr-login.md)。
 认证成功通过 Activity Result 通知首页，先显示缓存，再立即同步课程；普通启动仅恢复本地快照。
 
 移动引擎独立持有设备时区，刷新前由 Android 更新；tzdata 仅随绑定模块打包，不改变桌面全局时区。

@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicReference
 @RunWith(AndroidJUnit4::class)
 class LoginScreenTest {
     @Test fun recreationKeepsWebSessionAndBackgroundReturnKeepsPage() {
-        ActivityScenario.launch(LoginActivity::class.java).use { scenario ->
+        ActivityScenario.launch(WebLoginActivity::class.java).use { scenario ->
             var web: WebView? = null
             var navigationStarted = false
             val until = System.currentTimeMillis() + 5000
@@ -35,7 +35,7 @@ class LoginScreenTest {
             assertTrue(navigationStarted)
             val written = CountDownLatch(1)
             scenario.onActivity {
-                CookieManager.getInstance().setCookie(LoginActivity.BASE,
+                CookieManager.getInstance().setCookie(WebLoginActivity.BASE,
                     "lifecycle_probe=synthetic-only; Path=/; Secure") { written.countDown() }
             }
             assertTrue(written.await(2, TimeUnit.SECONDS))
@@ -43,20 +43,20 @@ class LoginScreenTest {
             scenario.moveToState(Lifecycle.State.RESUMED)
             scenario.onActivity {
                 assertSame("background return replaced the active QR page", web, findWebView(it.window.decorView))
-                assertTrue(CookieManager.getInstance().getCookie(LoginActivity.BASE).orEmpty().contains("lifecycle_probe=synthetic-only"))
+                assertTrue(CookieManager.getInstance().getCookie(WebLoginActivity.BASE).orEmpty().contains("lifecycle_probe=synthetic-only"))
             }
             scenario.recreate()
             InstrumentationRegistry.getInstrumentation().waitForIdleSync()
             scenario.onActivity {
                 findWebView(it.window.decorView)?.settings?.blockNetworkLoads = true
                 assertTrue("Activity recreation erased the scan result",
-                    CookieManager.getInstance().getCookie(LoginActivity.BASE).orEmpty().contains("lifecycle_probe=synthetic-only"))
+                    CookieManager.getInstance().getCookie(WebLoginActivity.BASE).orEmpty().contains("lifecycle_probe=synthetic-only"))
             }
         }
     }
 
     @Test fun loginAllowsScreenshotsForWechatAlbum() {
-        ActivityScenario.launch(LoginActivity::class.java).use { scenario ->
+        ActivityScenario.launch(WebLoginActivity::class.java).use { scenario ->
             scenario.onActivity {
                 assertEquals("login QR cannot be captured for WeChat", 0,
                     it.window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE)
@@ -65,7 +65,7 @@ class LoginScreenTest {
     }
 
     @Test fun loginWebViewHasViewportAndKeepsQrVisible() {
-        ActivityScenario.launch(LoginActivity::class.java).use { scenario ->
+        ActivityScenario.launch(WebLoginActivity::class.java).use { scenario ->
             val instrumentation = InstrumentationRegistry.getInstrumentation()
             var web: WebView? = null
             val deadline = System.currentTimeMillis() + 5000
