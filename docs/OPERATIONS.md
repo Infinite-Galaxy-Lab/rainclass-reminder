@@ -12,11 +12,22 @@
 
 ## 本机本轮部署
 
-2026-11-08 已在用户私有目录保存发布前源码 bundle 和工作区快照。程序/启动器的新部署目录为 `%LOCALAPPDATA%\RainClassReminder`，里面的 `settings.json` 只含本机路径、二进制校验和和启动下限时间，不存凭据。
+2026-11-08 已在用户私有目录保存发布前源码 bundle 和工作区快照。2026-11-09 任务进程
+无法访问原 `%LOCALAPPDATA%\RainClassReminder` 部署目录，启动文件与观察记录已迁移到
+`%APPDATA%\ykt-reminder\runtime`，原配置、凭据与数据库路径不变。`settings.json` 只含本机路径、
+二进制校验和和启动下限时间，不存凭据。旧 Local 目录保留回退材料与 Android 签名，不再作为当前启动入口。
 
-本机沿用原自启任务 `YktReminder`，下次符合时间条件的交互式登录后延迟 30 秒启动。安装器不会立即启动程序，也不会停止正在运行的实例。旧任务 XML、旧启动器/设置的副本保存在部署目录的 `rollback` 中。观察安排见 [OBSERVATION.md](OBSERVATION.md)。
+本机沿用原自启任务 `YktReminder`，交互式登录后延迟 30 秒启动。09:37:28 已手动触发该任务，
+确认持续运行、面板 HTTP 200、观察更新；下次登录自动触发仍待验。启动动作直接调用隐藏 PowerShell，
+工作目录显式指定系统目录，同步等待 Go 进程退出。认证失效时保留面板供用户重登。
+安装器不会立即启动程序，也不会停止正在运行的实例。旧任务 XML、旧启动器/设置的副本
+保存在原 Local 部署目录的 `rollback` 中。观察安排见 [OBSERVATION.md](OBSERVATION.md)。
 
 新机器可用 `deploy/install-observation.ps1`，默认任务名 `RainClassReminder`；升级必须指定已有任务名，避免生成两套自启。安装器以哈希命名二进制，允许旧文件保留用于回退。安装目录限制为当前用户与 SYSTEM；凭据目录的保护沿用现有配置，需要单独管理。
+
+本机后续升级须传 `-TaskName YktReminder -InstallDir "$env:APPDATA\ykt-reminder\runtime"`，
+并沿用原配置与数据路径。安装器只设置必要的目录访问规则，不要求改变所有者权限。
+先停止旧服务，再启动任务，确认只存在一个主进程；不要启动已废弃的 Local 入口。
 
 ## 回退
 

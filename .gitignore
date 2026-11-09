@@ -38,3 +38,16 @@ __pycache__/
 .vscode/
 *.swp
 .DS_Store
+
+# Android 构建与签名
+**/.gradle/
+/apps/android/**/build/
+/apps/android/local.properties
+/apps/android/app/libs/*.aar
+*.aab
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key

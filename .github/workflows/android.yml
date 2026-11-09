@@ -1,0 +1,51 @@
+name: android
+
+on:
+  push:
+    branches: [main, 'codex/android-release']
+    paths: ['apps/android/**', 'bindings/mobile/**', 'internal/**', 'go.mod', 'go.sum', '.github/workflows/android.yml']
+  pull_request:
+    paths: ['apps/android/**', 'bindings/mobile/**', 'internal/**', 'go.mod', 'go.sum', '.github/workflows/android.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.3'
+          cache-dependency-path: bindings/mobile/go.sum
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: '13114758'
+      - name: Android components
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'ndk;28.2.13676358'
+      - name: Mobile module
+        working-directory: bindings/mobile
+        run: |
+          test -z "$(gofmt -l .)"
+          go mod verify
+          go test ./...
+          if GOOS=android GOARCH=arm64 CGO_ENABLED=1 go list -deps . | grep -E '/internal/(cli|webui)$|github.com/gen2brain/beeep'; then
+            exit 1
+          fi
+      - name: Verify wrapper
+        run: echo '2db75c40782f5e8ba1fc278a5574bab070adccb2d21ca5a6e5ed840888448046  apps/android/gradle/wrapper/gradle-wrapper.jar' | sha256sum --check
+      - name: Build and lint
+        shell: pwsh
+        run: ./apps/android/build.ps1 -Stage "$env:RUNNER_TEMP/rainclass-android"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rainclass-android-debug
+          path: dist/android/*
+          retention-days: 14

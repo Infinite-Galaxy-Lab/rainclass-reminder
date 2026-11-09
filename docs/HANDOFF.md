@@ -21,8 +21,8 @@
 | | |
 |---|---|
 | 版本 | 0.7.0 |
-| 分支 | 发布工作基于远端 `main`；最新提交与验证见 Git 历史及 CI |
-| 测试 | 181 个 Go 测试函数、6 个面板纯逻辑测试、9 个 Python 工具测试，本地全绿 |
+| 分支 | `codex/android-release`；Android 与本轮认证恢复改动在此分支，尚未合并 main |
+| 测试 | 197 个 Go 测试函数、6 个面板纯逻辑测试、9 个 Python 工具测试；Android 10 项模拟器设备测试通过 |
 | CI | 3 平台 Go 测试、4 平台构建、cgo 断言、面板及 Python 工具测试；远端结果以 Actions 为准 |
 | 构建 | 六平台交叉编译，13 MB，零 cgo |
 | 注释密度 | 15%（只保留非显然的 WHY） |
@@ -139,21 +139,76 @@ Windows 启动器用合成进程验证时间门槛、中文路径、环境变量
 浏览器监听用本地合成 TLS 服务器验证 CDP、Set-Cookie 存在标记、脱敏与退出时保留浏览器。
 没有以真实账号流量冒充这些工具验证。
 
-Windows GUI 建议 Wails 薄壳，Android 建议 Kotlin / Compose + 小型 Go AAR，
-先验证依赖与真机后台行为。尚无 GUI 安装包或 APK，不把架构方向写成已支持。
+上一轮 Windows GUI 建议 Wails 薄壳，Android 建议 Kotlin / Compose + 小型 Go AAR。
+Android 本轮已按此方向生成 demo，进度与限制见下；Windows GUI 安装包尚未制作。
 见 [ADR 0001](adr/0001-platform-clients.md)、[ROADMAP.md](ROADMAP.md) 与 [OPERATIONS.md](OPERATIONS.md)。
 
 ## 未做待办（按优先级）
 
+### Android 内测与观察恢复 · 2026-11-09
+
+分支 `codex/android-release`。已建立 Kotlin / Compose 工程、小型 gomobile AAR 绑定和
+`internal/application`，复用既有抓取、SQLite、策略与去重。已生成 Android `0.1.0-alpha.2`
+签名 demo APK，产物在忽略目录 `dist/android/`，不创建正式发行标签。项目图标使用第二版。
+模块、构建与签名要求见 [ANDROID.md](ANDROID.md)。
+
+交付包 `dist/android/rainclass-reminder-0.1.0-alpha.2.apk`（35,270,675 字节）已通过签名与
+16 KiB zipalign 检查，并在 MuMu Android 15 从 alpha.1 覆盖升级、启动成功。SHA-256：
+`bb6502590f7d8ac6213d8dc8277277800b61f0bb61d1ee6d6989dc4171044204`。
+alpha.1 仍单独保留在忽略目录。源码与 CI 对应本分支提交，不沿用 main 的旧 CI 结果。
+
+已验证：arm64-v8a / x86_64 AAR、Go 核心与 SQLite 在 Android 编译运行、Keystore 密文与重置、
+SQLite 重开和 nullable 成绩、唯一周期 Worker / 取消、通知拒绝和关闭渠道、320dp 界面与设置。
+MuMu Android 15 共 10 项设备测试通过；今日新增 4 项 Kotlin 实现破坏均取得断言失败，恢复后全绿。
+Go 今日新增 8 个测试函数；时区、DST、通知时间、请求取消、启动恢复与失效告警相关的 10 项
+反向验证均通过。197 项 Go tests、vet、gofmt、原有 Node / Python 测试通过。
+已加入独立 Android CI；实际远端结果以本分支 Actions 为准。
+
+扫码页空白已在当前手机比例模拟器复现：WebView 未指定布局尺寸，实际页面高度为零；官方
+固定宽度页面又使二维码超出窄屏。现显式填满可用区域，只对官方登录页修正 viewport 并开放缩放，
+增加重载与加载失败提示。debug 检查确认二维码完整落在可见范围；release 关闭 WebView 调试。
+这不等于真实手机扫码登录通过，仍待用户验证。
+
+设备时区现由 Android 传入，每个引擎独立配置，每次刷新更新，不修改全局 time.Local。
+移动绑定内置 tzdata；静默顺延使用日历日期，通知时间按同一时区渲染。Worker 取消改为持有具体
+刷新请求，停止早于请求执行也会保留取消状态，不误伤其他请求。
+
+Cookie 过期提醒已存在：服务端明确认证失败时，调用既有 `AlertAuthExpired` 持久化去重并
+发一次重登通知；网络错误不算过期。Android 还需系统通知权限和实际执行刷新。设备上的真实
+过期通知全流程仍待验证，不能保证后台被限制时即时提醒。
+
+Windows 启动认证失败时现在保留面板与服务，便于重登；`--once` 仍失败退出。运行中认证失败
+暂停缓存任务提醒，成功完成抓取才清除告警去重，网络故障不清标记。
+
+今日重启后原自启失败。09:01:55 首次建立观察目录时已明确认证失败；缺少最近成功样本，
+不能从本地导入至首次失败的约 21 小时间隔推算真实寿命。任务无法访问原 Local 部署目录，
+现迁至 `%APPDATA%\ykt-reminder\runtime`，沿用原配置与数据并复制已有观察窗口。
+09:37:28 从计划任务实际启动成功，任务为 Running、面板 HTTP 200、观察文件更新。
+下次登录触发仍需重启验收；官方网页监听尚未运行。旧设置与任务备份仍在原私有 rollback 目录。
+
+下轮按以下顺序继续：
+
+1. **恢复桌面观察**：用户在本地面板重登并刷新，取得成功样本；下次登录确认自启，网页侧另开专用观察。
+2. **Android 真实登录**：用户在 alpha.2 验证手机二维码、官方 WebView / 微信扫码获得 Cookie，Go 校验同域会话，登录后刷新。
+   未使用真实账号登录本轮 Android demo。
+3. **Cookie 过期端到端**：真实失效、只提醒一次、通知被拒绝后可重试、重登恢复；不把断网判过期。
+4. **后台设备验收**：物理手机、重启、进程回收、Doze / 厂商省电、断网恢复、Worker stop 取消竞争。
+   Worker stop 取消竞争已通过设备测试及反向验证；硬件与系统调度仍待实测，不承诺精确提醒。
+5. **发行与管理**：Android CI 实际运行、API 26 / arm64 设备、16 KiB 页设备、签名升级/回滚、
+   密钥跨机加密备份恢复，再决定正式分发；当前本地密钥备份与证书核对通过，但仅 DPAPI 密码副本不能跨机恢复。
+
+模拟器证据、截图、工具链与签名均在仓库外。SDK 工具下载期间发现 Windows 系统代理未被
+Java / curl 自动继承；本机构建缓存已配置，不能把个人代理路径/设置提交到项目。
+
 ### P2 · 需要时间
 
-- **登录态持续观察** — 工具与明日自启已准备，等待足够长的成功/明确失效证据；既有样本未观察到 sessionid 下发，不能推广为服务端永远不会续期。
+- **登录态持续观察** — 计划任务与项目观察已恢复，当前 Cookie 失效，待重登取得连续样本；Set-Cookie 存在标记不证明续期成功。
 - **官方网页 Network** — 脱敏监听脚本已提供，待专用浏览器登录并观察；项目侧采集不能替代网页侧证据。
 
 ### P4 · 功能增强
 
-- **Windows GUI / Android 发行版** — 按 ADR 与路线图先做 AAR / 后台验证，再做 Wails 壳与原生界面。iOS 后续评估。
-- 自有图标已替换 README 占位图，PNG/ICO 见 `docs/BRANDING.md`。发行包图标与面板接入尚未完成。设计提示词仅在仓库外私有保存。
+- **Windows GUI / Android 发行版** — Android alpha.2 已修时区与扫码布局，待真机、真实登录与后台验收；Windows Wails 壳尚未做。iOS 后续评估。
+- 自有图标已替换 README 占位图并接入 Android demo，PNG/ICO 见 `docs/BRANDING.md`。Windows 发行包图标与面板接入尚未完成。设计提示词仅在仓库外私有保存。
 
 ### P5 · 低优先级
 
@@ -202,4 +257,4 @@ node --test internal/webui/task-view.test.mjs
 python -m unittest discover -s tools -p 'test_*.py' -v
 ```
 
-下一步优先积累 P2 的登录态寿命证据，再推进移动端与发行素材接入。
+明天先修 Android 时区并验证真实登录，同时检查 P2 自启采集是否产生有效证据。

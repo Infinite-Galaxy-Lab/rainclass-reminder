@@ -12,6 +12,7 @@ import (
 	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/config"
 	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/scheduler"
 	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/webui"
+	"github.com/Infinite-Galaxy-Lab/rainclass-reminder/internal/ykt"
 )
 
 // cmdRun 启动常驻服务。
@@ -35,7 +36,9 @@ func cmdRun(ctx context.Context, cfg config.Config, args []string, stdout, stder
 		fmt.Fprintln(stderr, `  rainclass-reminder auth import --cookie "sessionid=...; csrftoken=..."`)
 		fmt.Fprintln(stderr, "或：")
 		fmt.Fprintln(stderr, "  rainclass-reminder auth login")
-		return 1
+		if *once {
+			return 1
+		}
 	}
 
 	sch, err := app.NewScheduler(*dryRun)
@@ -44,15 +47,17 @@ func cmdRun(ctx context.Context, cfg config.Config, args []string, stdout, stder
 		return 1
 	}
 
-	// 校验登录态，失效时发一次性告警并退出（避免空转）。
 	if err := app.Client.CheckAuth(ctx); err != nil {
 		if authErr := authErrorHint(err); authErr != nil {
 			fmt.Fprintf(stderr, "登录态校验失败: %v\n", authErr)
 		}
-		_ = sch.AlertAuthExpired(ctx)
-		return 1
+		if ykt.IsAuthError(err) {
+			_ = sch.AlertAuthExpired(ctx)
+		}
+		if *once {
+			return 1
+		}
 	}
-	sch.ClearAuthExpired(ctx)
 
 	if *once {
 		res := sch.RunCycle(ctx)

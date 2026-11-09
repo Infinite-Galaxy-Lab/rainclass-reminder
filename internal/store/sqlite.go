@@ -107,6 +107,20 @@ func (s *SQLite) Close() error {
 	return s.db.Close()
 }
 
+func (s *SQLite) Reset(ctx context.Context) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for _, table := range []string{"tasks", "pushes", "kv"} {
+		if _, err := tx.ExecContext(ctx, "DELETE FROM "+table); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
 // PushedKeys 返回所有已发送或已抑制的提醒键。
 func (s *SQLite) PushedKeys(ctx context.Context) (map[string]bool, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT key FROM pushes WHERE status IN ('sent', 'suppressed')`)

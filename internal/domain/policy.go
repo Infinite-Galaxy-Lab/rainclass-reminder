@@ -69,7 +69,7 @@ func (c PolicyConfig) deferTarget(now time.Time) time.Time {
 	target := time.Date(y, m, d, c.QuietDeferHour, c.QuietDeferMinute, 0, 0, now.Location())
 	// 若静默区间跨午夜且当前在午夜之后，顺延点仍在"今天"。
 	if !target.After(now) {
-		target = target.Add(24 * time.Hour)
+		target = target.AddDate(0, 0, 1)
 	}
 	return target
 }

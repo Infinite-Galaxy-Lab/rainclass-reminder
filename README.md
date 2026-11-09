@@ -9,7 +9,7 @@
 <p align="center">
   <b>长江雨课堂的截止提醒助手 · 把作业和考试推到手机上</b><br>
   只读守护进程 · 多通道推送 · 本地 Web 面板 · 纯 Go 单文件部署<br>
-  桌面端先行，移动端 App 发行版在计划中
+  桌面端已可用，Android demo 开发中，正式发行待验收
 </p>
 
 <p align="center">
@@ -27,6 +27,8 @@
 RainClass Reminder 补上这一环：一个常驻后台的只读进程，按你设定的时间窗把即将到期的任务推出来。
 
 只读是它的第一设计约束——不提交、不答题、不交卷，全部请求为 GET。
+
+Android demo 的模块、构建、已知限制和验收进度见 [docs/ANDROID.md](docs/ANDROID.md)。
 
 ## 特性
 

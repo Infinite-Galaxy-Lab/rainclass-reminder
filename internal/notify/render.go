@@ -15,6 +15,7 @@ import (
 // RenderReminder 把一条提醒渲染成通知消息。
 func RenderReminder(r domain.Reminder, now timeNow) Message {
 	t := r.Task
+	at := now()
 	title, level := headline(r)
 
 	var b strings.Builder
@@ -26,11 +27,11 @@ func RenderReminder(r domain.Reminder, now timeNow) Message {
 	b.WriteString(fmt.Sprintf("类型：%s\n", t.Type.Label()))
 
 	if t.HasDeadline() {
-		b.WriteString(fmt.Sprintf("截止：%s\n", t.Deadline.Format("01-02 15:04")))
-		b.WriteString(fmt.Sprintf("剩余：**%s**\n", t.Remaining(now())))
+		b.WriteString(fmt.Sprintf("截止：%s\n", t.Deadline.In(at.Location()).Format("01-02 15:04")))
+		b.WriteString(fmt.Sprintf("剩余：**%s**\n", t.Remaining(at)))
 	}
 	if !t.StartAt.IsZero() {
-		b.WriteString(fmt.Sprintf("开始：%s\n", t.StartAt.Format("01-02 15:04")))
+		b.WriteString(fmt.Sprintf("开始：%s\n", t.StartAt.In(at.Location()).Format("01-02 15:04")))
 	}
 	if t.URL != "" {
 		b.WriteString(fmt.Sprintf("\n[打开雨课堂](%s)", t.URL))

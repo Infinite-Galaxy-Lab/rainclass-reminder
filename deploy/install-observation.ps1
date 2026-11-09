@@ -20,7 +20,6 @@ New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $acl = New-Object Security.AccessControl.DirectorySecurity
-$acl.SetOwner($identity.User)
 $acl.SetAccessRuleProtection($true, $false)
 foreach ($sid in @($identity.User, [Security.Principal.SecurityIdentifier]'S-1-5-18')) {
     $rule = New-Object Security.AccessControl.FileSystemAccessRule($sid, 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow')
@@ -62,14 +61,10 @@ $settingsPath = Join-Path $InstallDir 'settings.json'
 
 $powershell = Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/powershell.exe'
 $wrapper = Join-Path $InstallDir 'start-observed.ps1'
-$command = '"' + $powershell + '" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $wrapper + '" -SettingsPath "' + $settingsPath + '"'
-$escapedCommand = $command.Replace('"', '""')
-$vbs = "Set sh = CreateObject(""WScript.Shell"")`r`nWScript.Quit sh.Run(""$escapedCommand"", 0, True)`r`n"
-$launcher = Join-Path $InstallDir 'launch-hidden.vbs'
-Set-Content -LiteralPath $launcher -Value $vbs -Encoding Unicode
+$arguments = '-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + $wrapper + '" -SettingsPath "' + $settingsPath + '"'
 
 if (-not $PrepareOnly) {
-    $action = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument ('"' + $launcher + '"')
+    $action = New-ScheduledTaskAction -Execute $powershell -Argument $arguments -WorkingDirectory (Split-Path -Parent $powershell)
     $trigger = New-ScheduledTaskTrigger -AtLogOn -User $identity.Name
     $trigger.StartBoundary = $NotBefore.ToString('yyyy-MM-ddTHH:mm:sszzz')
     $trigger.Delay = 'PT30S'

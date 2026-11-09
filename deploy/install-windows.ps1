@@ -57,7 +57,7 @@ if (-not (Test-Path $launcherDir)) {
 # 0 = 隐藏窗口，False = 不等待子进程退出（计划任务不会以为程序秒退）
 #
 # 注意编码：必须用 Unicode(UTF-16LE)。WScript 能正确识别，
-# 而 ASCII 会把中文路径（如 D:\code\长江雨课堂通知助手）写成问号，
+# 而 ASCII 会把中文路径写成问号，
 # 结果就是静默启动失败、日志里什么都没有。
 $vbs = @"
 Set sh = CreateObject("WScript.Shell")

@@ -174,17 +174,25 @@ func (s *Scheduler) RunCycle(ctx context.Context) CycleResult {
 	tasks, err := s.opts.Source.FetchTasks(ctx)
 	if err != nil {
 		s.log.Warn("抓取任务失败", "err", err)
+		if IsAuthExpired(err) {
+			_ = s.AlertAuthExpired(ctx)
+		}
 		res.Err = err
 		snap, loadErr := s.opts.Store.LoadTasks(ctx)
 		if loadErr != nil {
 			return res
 		}
 		tasks = snap.Tasks
+		if IsAuthExpired(err) {
+			res.Tasks = tasks
+			return res
+		}
 		if len(tasks) == 0 {
 			return res
 		}
 		s.log.Info("使用上次任务快照继续判断", "count", len(tasks))
 	} else {
+		s.ClearAuthExpired(ctx)
 		if err := s.opts.Store.SaveTasks(ctx, tasks); err == nil {
 			if sv, ok := s.opts.Store.(interface {
 				SaveSnapshotTime(context.Context, time.Time) error
