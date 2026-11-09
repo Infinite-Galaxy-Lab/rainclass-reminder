@@ -51,7 +51,7 @@ Go 用例把业务请求限定为现有只读 GET。点击任务会交给外部�
 另一台设备扫码也是可选方式。截图不会由应用自动保存或上传。切后台保留当前 WebView，返回时
 恢复检查；横竖屏、屏幕尺寸变化保留扫码页，Activity 重建不清 Cookie。新登录流程与结束登录时
 清理网页数据，已认证会话另存于 Keystore 支持的加密存储。系统回收进程后未完成的二维码可能失效。
-后台扫码的手机复验仍需用户完成，不能用合成生命周期测试代替。
+alpha.6 的真实后台扫码复验失败：用户已在微信确认成功，返回仍停在登录页。该问题保持未解决，不能用合成生命周期测试代替。
 
 alpha.4 修复当前 basic-info 返回 `id` 而旧解析只读取 `user_id` 导致的有效会话拒绝；
 兼容逻辑留在 Go DTO，仍校验非零身份。点击「已登录」时显示校验进度。
@@ -166,3 +166,17 @@ alpha.6 签名包来自干净源码 `295f47d`，versionCode 6，35,290,015 字�
 release JVM 测试、lint、原证书验签、zipalign 和双 ABI native ELF 的 16 KiB 对齐通过。
 MuMu 覆盖安装调试包后加密会话文件哈希未变；发行包覆盖安装成功，版本核对为 alpha.6。
 此项证明升级保留存储，不将其等同于新版本进程启动或服务端会话有效期验证。
+
+2026-11-09 后续取证：验证包返回栈出现两套 Main/Login。辅助脚本曾用无 MAIN/LAUNCHER 的
+显式 Intent 启动根页面，随后从桌面图标返回可能生成新根页面；尚不能把此现象认定为真实手机根因。
+已改用标准 MAIN + LAUNCHER 启动进行复验，运行时只收集请求类别、HTTP 状态及布尔状态。
+两个旧 WebView 均显示二维码失效且没有 sessionid；官方失败遮罩只能获取新二维码，不能沿用旧确认 token。
+alpha.6 Android CI `42567795205` 重跑通过 Linux AAR、APK、JVM 测试和 lint；首次运行受 Gradle 下载 504 影响。
+
+手动扫码验证应从桌面图标启动，或使用等价命令，避免用仅有组件名的启动制造不同任务栈：
+
+```powershell
+adb -s '<测试设备>' shell am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -n lab.infinitegalaxy.rainclass.verification/lab.infinitegalaxy.rainclass.MainActivity
+```
+
+验证包完成真实扫码后，不再直接运行会清除该包会话的合成设备测试。

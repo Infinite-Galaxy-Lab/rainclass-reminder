@@ -285,7 +285,10 @@ Activity 重建保留 Cookie，新登录流程和结束时清网页数据。自�
 签名包 `dist/android/rainclass-reminder-0.1.0-alpha.6.apk` 来自干净提交 `295f47d`，
 原证书、versionCode 6，release JVM / lint / 验签 / 16 KiB 对齐通过，校验和见 ANDROID。
 MuMu 覆盖安装调试包保留加密会话文件，发行包覆盖安装成功。隔离 `.verification` 已打开登录页，
-等待用户按主页键切后台扫码后返回，核对自动跳转与同步；此后不要再跑该包的合成测试清理其会话。
+用户已按主页键切后台并在微信确认成功，但返回仍停在登录页，alpha.6 后台扫码尚未修复。
+验证栈发现两套 Main/Login，可能受辅助脚本非启动器 Intent 影响；正用标准 MAIN/LAUNCHER 复验，
+尚未证明是真实手机根因。专用 WebView 监听只收集类别与状态，不改桌面观察器。
+不要再跑该包的合成测试清理其真实扫码现场。Android CI `42567795205` 重跑已通过。
 
 下轮按以下顺序继续：
 
