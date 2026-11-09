@@ -13,6 +13,10 @@
 2026-11-09 已另存源码 bundle、工作区快照、alpha.2 APK、构建信息及反向验证摘要，
 保留昨日备份。新备份目录与设备证据目录均限制为当前用户与 SYSTEM；未混入运行数据库或登录态。
 
+同日 alpha.3 登录页修复另建独立备份，包含源码 bundle、源码快照、APK、校验和、构建信息与
+回归摘要；alpha.1 / alpha.2 保留。观察切换的设置与任务 XML 在 runtime/rollback，
+请求监测窗口与输出目录以 [OBSERVATION.md](OBSERVATION.md) 和私有 settings.json 为准。
+
 ## 本机本轮部署
 
 2026-11-08 已在用户私有目录保存发布前源码 bundle 和工作区快照。2026-11-09 任务进程

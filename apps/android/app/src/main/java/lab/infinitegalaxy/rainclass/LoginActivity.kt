@@ -5,7 +5,6 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.view.ViewGroup
-import android.view.WindowManager
 import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceError
@@ -30,13 +29,15 @@ class LoginActivity : ComponentActivity() {
     private var webView: WebView? = null
     private var message by mutableStateOf("正在加载官方登录页…")
     private var checking by mutableStateOf(false)
+    private val mobileLoginScript by lazy {
+        assets.open("login-mobile.js").bufferedReader().use { it.readText() }
+    }
 
     @OptIn(ExperimentalMaterial3Api::class)
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
-        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         CookieManager.getInstance().setAcceptCookie(true)
         setContent {
             RainTheme {
@@ -50,6 +51,8 @@ class LoginActivity : ComponentActivity() {
                 }) { insets ->
                     Column(Modifier.fillMaxSize().padding(insets)) {
                         Text(message, Modifier.padding(horizontal = 20.dp, vertical = 10.dp), style = MaterialTheme.typography.bodySmall)
+                        Text("可截图后到微信「扫一扫 → 相册」尝试识别，也可用另一台设备扫码。确认后返回，点击「已登录」。",
+                            Modifier.padding(horizontal = 20.dp, vertical = 4.dp), style = MaterialTheme.typography.bodySmall)
                         if (checking) LinearProgressIndicator(Modifier.fillMaxWidth())
                         AndroidView(modifier = Modifier.fillMaxWidth().weight(1f), factory = { context ->
                             WebView(context).apply {
@@ -97,14 +100,7 @@ class LoginActivity : ComponentActivity() {
     }
 
     private fun fitLoginPage(view: WebView) {
-        // 官方登录页固定宽度且禁止缩放，窄屏中二维码会落在可见区域外。
-        view.evaluateJavascript("""
-            (() => {
-                const viewport = document.querySelector('meta[name="viewport"]');
-                if (viewport) viewport.content = 'width=1100, user-scalable=yes';
-                window.dispatchEvent(new Event('resize'));
-            })();
-        """.trimIndent(), null)
+        view.evaluateJavascript(mobileLoginScript, null)
     }
 
     private fun checkSession() {

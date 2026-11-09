@@ -8,7 +8,13 @@
 本机计划任务 `YktReminder` 已于 09:37:28 手动触发并保持运行，面板与观察文件检查通过。
 当前部署改为 `%APPDATA%\ykt-reminder\runtime`，因为任务进程无法访问原 Local 部署目录；
 原配置、数据目录和观察窗口保留，目录 ACL 只允许当前用户与 SYSTEM。
-这次验收覆盖计划任务启动链路；下次用户登录触发仍待验。当前须用户在面板重登才能取得成功样本。
+这次验收覆盖计划任务启动链路；下次用户登录触发仍待验。
+
+用户已于 **2026-11-09 11:01:54 +08:00** 在桌面面板重登，现已取得认证成功样本。
+11:06:36 从同一计划任务开始独立一轮 24h 项目请求观察，窗口截至 **2026-11-10 11:06:36 +08:00**。
+任务 Running、面板 HTTP 200，认证与请求记录持续更新。旧观察目录保留，新目录由私有
+`settings.json` 的 `observation_dir` 指定；切换前设置和任务 XML 已保存在私有 rollback 目录。
+这只是开始观察，不能提前声称全天完成；关机、休眠或断网期间仍会缺少样本。
 
 本机设置为 **2026-11-09 00:00:00 +08:00 之后的首次用户登录**，延迟 30 秒随项目启动。不是午夜定时唤醒，也不会让关机的电脑自动开机。配置、数据目录沿用已有路径，实际值只在用户私有部署设置中。
 
@@ -23,7 +29,7 @@ powershell -ExecutionPolicy Bypass -File deploy/install-observation.ps1 `
 ```
 
 安装器默认部署目录为 `%LOCALAPPDATA%\RainClassReminder`，可用 `-InstallDir` 指定；本机已改用上述 Roaming 私有目录。
-`settings.json` 存路径与时间，不存凭据；观察输出在部署目录的 `observations` 子目录。
+`settings.json` 存路径与时间，不存凭据；观察输出目录以其中的 `observation_dir` 为准。
 旧任务 XML 与设置在原部署目录的 `rollback`。手动运行其他二进制不自动继承这些设置；
 要使用同一启动入口，执行部署目录里的 `start-observed.ps1 -SettingsPath <settings.json>`，并确保没有另一实例运行。
 
@@ -46,8 +52,8 @@ powershell -ExecutionPolicy Bypass -File deploy/install-observation.ps1 `
 报告命令：
 
 ```powershell
-# 本机已迁移后的目录；其他机器以 settings.json 中的 observation_dir 为准。
-python tools/observe_report.py "$env:APPDATA\ykt-reminder\runtime\observations"
+$settings = Get-Content "$env:APPDATA\ykt-reminder\runtime\settings.json" -Raw | ConvertFrom-Json
+python tools/observe_report.py $settings.observation_dir
 ```
 
 报告保留程序请求与浏览器请求的独立统计，忽略未知字段和坏尾行，不输出原始记录或路径。认证按本地 `acquired_at` 分组：最近成功、首次明确认证失败、失败后是否再次成功。`upstream`、断网、取消均不能算登录失效。
@@ -77,12 +83,14 @@ Start-Process -FilePath $edge -WindowStyle Normal -ArgumentList @(
 )
 & "$env:APPDATA\ykt-reminder\runtime\observer-venv\Scripts\python.exe" `
   tools/observe_browser.py --cdp http://127.0.0.1:9222 `
-  --output "$env:APPDATA\ykt-reminder\runtime\observations"
+  --output $settings.observation_dir
 ```
 
 只允许回环 HTTP CDP 地址，输出只接收 `yuketang.cn` / `xuetangx.com` 及其子域 HTTPS 事件。保留端点类别、方法、状态、到响应头的耗时与两种 Set-Cookie 存在标记；未知路径统一 `other`。没有完整 HAR、正文、请求 Cookie 或 WebSocket 帧，所以仅能发现续期线索，不能单凭这份输出还原所有官方逻辑。浏览器 401/403 也可能是权限错误，不能直接当作全账号失效。
 
 最多记录从首次浏览器采集起的 24h，`browser-window.json` 跨脚本重启保留窗口；关闭浏览器或 Ctrl+C 结束。脚本退出不关闭用户窗口。CDP 能访问浏览器会话，应只绑定回环、使用独立 profile，观察结束关闭该窗口。
 
-**项目侧观察已恢复；官方网页侧仍需用户打开上述专用窗口并登录后运行监听命令。**
+执行本节命令前先运行上节读取 `$settings` 的命令，工作目录为仓库根目录。
+
+**项目侧观察已取得成功样本；官方网页侧仍需用户手动打开上述专用窗口并登录后运行监听命令。**
 当前没有网页侧记录，不把项目请求当作官方网页全天观察证据。
