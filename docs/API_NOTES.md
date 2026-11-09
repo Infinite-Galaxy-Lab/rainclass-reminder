@@ -241,7 +241,7 @@ Header: xtbz: ykt
 3. GET  https://open.weixin.qq.com/connect/qrconnect  → HTML 中提取 /connect/qrcode/{uid}
 4. GET  https://open.weixin.qq.com/connect/qrcode/{uid} → **JPEG** 图片（不是 PNG！）
 5. GET  https://lp.open.weixin.qq.com/connect/l/qrconnect?uuid={uid}
-         → window.wx_code='...'
+         → window.wx_errcode=状态; window.wx_code='确认码'
 6. GET  /api/v3/user/login/wechat-web-callback?path=...&code=...&state=...
          → 302 = 成功，cookie 出现 sessionid
 ```
@@ -250,7 +250,9 @@ Header: xtbz: ykt
 - 必须**关闭自动重定向**，否则拿不到 302 判定
 - 全程复用同一 cookie jar，否则 `csrftoken` 丢失
 - 二维码返回 **JPEG**，需 `image.Decode` 自动识别格式（不能假定 PNG）
-- 轮询期间 `wx_code` 为空表示未扫码，`40x` 表示已扫码未确认
+- 状态在 `wx_errcode`，与 OAuth 确认码 `wx_code` 分开；空确认码不代表从未扫码
+- 官方页面收到 `404`（已扫码）或 `403`（拒绝）后，下一次请求回传 `last`；收到 `408` 后不再带旧状态
+- 2026-11-09 已补 `last` 回传及两种状态的合成回归，真实后台扫码结果仍待取证，不能据此断言已解决
 
 Android alpha.7 默认复用本节微信 OAuth，二维码由应用原生展示，轮询由 Go 持有，
 不再依赖官方默认 App 扫码页的一次长请求。认证仍须通过 basic-info 的非零身份检查。

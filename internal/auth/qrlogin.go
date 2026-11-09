@@ -218,6 +218,7 @@ func (q *QRLogin) fetchQRImage(ctx context.Context, uid string) ([]byte, error) 
 }
 
 var wxCodeRe = regexp.MustCompile(`window\.wx_code='([^']*)'`)
+var wxErrCodeRe = regexp.MustCompile(`window\.wx_errcode\s*=\s*(\d+)`)
 
 // Poll 轮询扫码状态，直到成功、过期或 ctx 结束。
 //
@@ -229,6 +230,7 @@ func (q *QRLogin) Poll(ctx context.Context, qr QRCode, interval time.Duration, s
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
+	last := ""
 	for {
 		select {
 		case <-ctx.Done():
@@ -237,7 +239,7 @@ func (q *QRLogin) Poll(ctx context.Context, qr QRCode, interval time.Duration, s
 			if time.Now().After(qr.ExpiresAt) {
 				return QRLoginResult{}, fmt.Errorf("二维码已过期，请重新扫码")
 			}
-			code, err := q.pollOnce(ctx, qr.UUID)
+			code, nextLast, err := q.pollOnce(ctx, qr.UUID, last)
 			if err != nil {
 				// 单次网络抖动不终止，继续轮询。
 				if status != nil {
@@ -245,6 +247,7 @@ func (q *QRLogin) Poll(ctx context.Context, qr QRCode, interval time.Duration, s
 				}
 				continue
 			}
+			last = nextLast
 			if code == "" {
 				if status != nil {
 					status("等待扫码…")
@@ -273,30 +276,40 @@ func (q *QRLogin) Poll(ctx context.Context, qr QRCode, interval time.Duration, s
 // pollOnce 查询一次扫码状态。
 //
 // 微信返回形如 window.wx_code='xxxx'; 的脚本，成功时包含非 408 的 code。
-func (q *QRLogin) pollOnce(ctx context.Context, uid string) (code string, err error) {
-	u := "https://lp.open.weixin.qq.com/connect/l/qrconnect?uuid=" + url.QueryEscape(uid)
+func (q *QRLogin) pollOnce(ctx context.Context, uid, last string) (code, nextLast string, err error) {
+	params := url.Values{"uuid": {uid}}
+	if last != "" {
+		params.Set("last", last)
+	}
+	u := "https://lp.open.weixin.qq.com/connect/l/qrconnect?" + params.Encode()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	req.Header.Set("User-Agent", defaultUA)
 	req.Header.Set("Referer", "https://open.weixin.qq.com/")
 
 	resp, err := q.http.Do(req)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer drain(resp)
 
 	b, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
-		return "", err
+		return "", "", err
+	}
+	// 微信页面会回传已扫码状态，继续等待同一二维码的确认。
+	if m := wxErrCodeRe.FindSubmatch(b); len(m) >= 2 {
+		if state := string(m[1]); state == "403" || state == "404" {
+			nextLast = state
+		}
 	}
 	m := wxCodeRe.FindSubmatch(b)
 	if len(m) < 2 {
-		return "", nil
+		return "", nextLast, nil
 	}
-	return string(m[1]), nil
+	return string(m[1]), nextLast, nil
 }
 
 // callback 用 wx_code 换 sessionid。
