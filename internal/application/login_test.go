@@ -18,6 +18,46 @@ import (
 
 const syntheticLoginBase = "https://ykt.test"
 
+type completedLoginFlow struct {
+	cancel context.CancelFunc
+	err    error
+}
+
+func (f *completedLoginFlow) Start(context.Context) (auth.QRCode, error) {
+	return auth.QRCode{UUID: "synthetic", PNG: []byte("image")}, nil
+}
+
+func (f *completedLoginFlow) Poll(context.Context, auth.QRCode, time.Duration, func(string)) (auth.QRLoginResult, error) {
+	if f.cancel != nil {
+		f.cancel()
+	}
+	return auth.QRLoginResult{Cookie: auth.Cookie{SessionID: "synthetic-session"}}, f.err
+}
+
+func TestLoginRejectsResultDeliveredAfterCancellation(t *testing.T) {
+	flow := &completedLoginFlow{}
+	login := loginWithFlow(flow, time.Minute, time.Millisecond)
+	defer login.Cancel()
+	flow.cancel = login.Cancel
+	if _, err := login.Start(); err != nil {
+		t.Fatal(err)
+	}
+	if cookie, err := login.Wait(); cookie != "" || err != errLoginCanceled {
+		t.Fatal("canceled flow delivered a login result")
+	}
+}
+
+func TestLoginPreservesMissingSessionReason(t *testing.T) {
+	login := loginWithFlow(&completedLoginFlow{err: auth.ErrLoginSessionMissing}, time.Minute, time.Millisecond)
+	defer login.Cancel()
+	if _, err := login.Start(); err != nil {
+		t.Fatal(err)
+	}
+	if cookie, err := login.Wait(); cookie != "" || err == nil || err.Error() != "login_session_missing" {
+		t.Fatal("missing session was not reported distinctly")
+	}
+}
+
 type syntheticLoginTransport struct {
 	mu sync.Mutex
 

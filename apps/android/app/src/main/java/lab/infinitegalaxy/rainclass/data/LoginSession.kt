@@ -13,8 +13,8 @@ internal interface LoginSession {
     fun cancel()
 }
 
-internal class NativeLoginSession(private val repository: RainRepository) : LoginSession {
-    private val login = Mobile.newLogin()
+internal class NativeLoginSession(private val repository: RainRepository, publicAccount: Boolean = false) : LoginSession {
+    private val login = if (publicAccount) Mobile.newPublicAccountLogin() else Mobile.newLogin()
 
     override suspend fun start(): ByteArray = withContext(Dispatchers.IO) { login.start() }
 

@@ -24,12 +24,12 @@ import lab.infinitegalaxy.rainclass.BuildConfig
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun LoginScreen(state: LoginState, onBack: () -> Unit, onRetry: () -> Unit, onWeb: () -> Unit,
-                         onCopyLink: () -> Unit = {}) {
+                         onCopyLink: () -> Unit = {}, onPublicAccount: (Boolean) -> Unit = {}) {
     var showLinkHelp by remember { mutableStateOf(false) }
     if (showLinkHelp && state.confirmationLink != null && BuildConfig.DEBUG) {
-        AlertDialog(onDismissRequest = { showLinkHelp = false }, title = { Text("单手机登录实验") },
-            text = { Text("复制后，在微信「文件传输助手」粘贴链接，发送给自己并点开。若出现登录确认，确认后返回本应用。\n\n若仍要求摄像头扫码，说明此方法不可用。链接仅供本次登录，请勿发给他人。") },
-            confirmButton = { TextButton(onClick = { showLinkHelp = false; onCopyLink() }) { Text("复制确认链接") } },
+        AlertDialog(onDismissRequest = { showLinkHelp = false }, title = { Text("公众号链接登录实验") },
+            text = { Text("复制后，在微信「文件传输助手」粘贴链接，发送给自己并点开。按微信页面提示操作，再返回本应用等待连接。\n\n此方式尚待真机验证。若仍要求摄像头扫码，请返回扫码登录。链接仅供本次登录，请勿发给他人。") },
+            confirmButton = { TextButton(onClick = { showLinkHelp = false; onCopyLink() }) { Text("复制公众号链接") } },
             dismissButton = { TextButton(onClick = { showLinkHelp = false }) { Text("取消") } })
     }
     Scaffold(topBar = {
@@ -41,8 +41,9 @@ internal fun LoginScreen(state: LoginState, onBack: () -> Unit, onRetry: () -> U
             .padding(horizontal = 24.dp, vertical = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(20.dp)) {
-            Text("微信扫码登录", style = MaterialTheme.typography.headlineSmall)
-            Text("请用微信扫描二维码。确认后返回应用，将自动连接你的课堂。\n微信可能禁止从相册识别登录码。",
+            Text(if (state.publicAccount) "公众号链接登录实验" else "微信扫码登录", style = MaterialTheme.typography.headlineSmall)
+            Text(if (state.publicAccount) "尝试在微信中打开公众号场景链接。\n确认后返回，应用将继续等待登录结果。"
+                else "请用微信扫描二维码。确认后返回应用，将自动连接你的课堂。\n微信可能禁止从相册识别登录码。",
                 color = Muted, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium)
             val bitmap = remember(state.image) {
                 state.image?.let { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }
@@ -57,9 +58,14 @@ internal fun LoginScreen(state: LoginState, onBack: () -> Unit, onRetry: () -> U
             }
             if (state.image != null) Text("等待微信确认…", color = Muted)
             if (BuildConfig.DEBUG && state.confirmationLink != null) {
-                OutlinedButton(onClick = { showLinkHelp = true }) { Text("单手机登录实验") }
+                Button(onClick = { showLinkHelp = true }) { Text("复制链接到微信") }
             }
             OutlinedButton(onClick = onRetry, enabled = !state.loading) { Text("获取新二维码") }
+            if (BuildConfig.DEBUG) {
+                TextButton(onClick = { showLinkHelp = false; onPublicAccount(!state.publicAccount) }) {
+                    Text(if (state.publicAccount) "返回微信扫码登录" else "尝试公众号链接登录")
+                }
+            }
             TextButton(onClick = onWeb) { Text("使用官方网页登录") }
         }
     }

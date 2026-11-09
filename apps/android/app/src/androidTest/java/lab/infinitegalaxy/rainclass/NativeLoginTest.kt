@@ -23,7 +23,6 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import lab.infinitegalaxy.rainclass.data.LoginSession
-import lab.infinitegalaxy.rainclass.data.LoginLinkClipboard
 import lab.infinitegalaxy.rainclass.ui.LoginViewModel
 import org.junit.Assert.*
 import org.junit.Rule
@@ -113,6 +112,46 @@ class NativeLoginTest {
         }
     }
 
+    @Test fun switchingLoginMethodRejectsLatePreviousResult() {
+        val old = FakeLogin(ignoreCancellation = true)
+        val fresh = FakeLogin()
+        withModel({ old }, { fresh }) { model ->
+            main { model.start() }
+            await { old.waiting }
+            main { model.usePublicAccount(true) }
+            await { fresh.waiting }
+            main {
+                assertTrue(old.cancelled)
+                assertEquals(1, fresh.starts)
+                assertTrue(model.state.value.publicAccount)
+                assertEquals("http://weixin.qq.com/q/synthetic-scene", model.state.value.confirmationLink)
+            }
+            old.confirmed.complete(Unit)
+            await { old.completed }
+            instrumentation.waitForIdleSync()
+            main { assertFalse("a cancelled method switched the replacement login", model.state.value.complete) }
+            fresh.confirmed.complete(Unit)
+            await { model.state.value.complete }
+        }
+    }
+
+    @Test fun missingPublicAccountSessionShowsExplanation() {
+        val old = FakeLogin()
+        val failing = FakeLogin(failure = "login_session_missing")
+        withModel({ old }, { failing }) { model ->
+            main { model.start() }
+            await { old.waiting }
+            main { model.usePublicAccount(true) }
+            await { failing.waiting }
+            failing.confirmed.complete(Unit)
+            await { model.state.value.error != null }
+            main {
+                assertFalse(model.state.value.complete)
+                assertTrue(model.state.value.error.orEmpty().contains("未取得应用登录凭据"))
+            }
+        }
+    }
+
     @Test fun validationFailureShowsRetryAndNeverCompletes() {
         val rejected = FakeLogin(failure = "invalid_session")
         val fresh = FakeLogin()
@@ -147,52 +186,77 @@ class NativeLoginTest {
 
     @Test fun confirmationLinkCopiesOnlyOnRequestAndClearsOnRetry() {
         val previous = app.loginSessionFactory
+        val previousPublic = app.publicAccountLoginSessionFactory
         val clipboard = app.getSystemService(ClipboardManager::class.java)
         app.loginSessionFactory = { FakeLogin() }
+        app.publicAccountLoginSessionFactory = { FakeLogin() }
         try {
             ActivityScenario.launch(LoginActivity::class.java).use {
-                compose.onNodeWithText("单手机登录实验").performScrollTo().assertIsDisplayed()
+                compose.onNodeWithText("尝试公众号链接登录").performScrollTo().assertIsDisplayed()
                 main { clipboard.setPrimaryClip(ClipData.newPlainText("test", "unrelated")) }
-                compose.onNodeWithText("单手机登录实验").performClick()
+                compose.onNodeWithText("尝试公众号链接登录").performClick()
+                compose.onNodeWithText("复制链接到微信").performScrollTo().assertIsDisplayed()
                 main { assertEquals("unrelated", clipboard.primaryClip?.getItemAt(0)?.text?.toString()) }
-                compose.onNodeWithText("复制确认链接").performClick()
+                compose.onNodeWithText("复制链接到微信").performClick()
+                compose.onNodeWithText("复制公众号链接").assertIsDisplayed()
+                main { assertEquals("unrelated", clipboard.primaryClip?.getItemAt(0)?.text?.toString()) }
+                compose.onNodeWithText("复制公众号链接").performClick()
                 main {
                     val clip = requireNotNull(clipboard.primaryClip)
-                    assertEquals("https://open.weixin.qq.com/connect/confirm?uuid=synthetic-qr", clip.getItemAt(0).text.toString())
+                    assertEquals("http://weixin.qq.com/q/synthetic-scene", clip.getItemAt(0).text.toString())
                     assertTrue(clip.description.extras?.getBoolean("android.content.extra.IS_SENSITIVE") == true)
                 }
                 compose.onNodeWithText("获取新二维码").performScrollTo().performClick()
                 main { assertTrue(clipboard.primaryClip?.getItemAt(0)?.text.isNullOrEmpty()) }
             }
-        } finally { app.loginSessionFactory = previous }
+        } finally {
+            app.publicAccountLoginSessionFactory = previousPublic
+            app.loginSessionFactory = previous
+        }
     }
 
     @Test fun confirmationLinkCleanupPreservesNewUserContent() {
         val previous = app.loginSessionFactory
+        val previousPublic = app.publicAccountLoginSessionFactory
+        val clipboard = app.getSystemService(ClipboardManager::class.java)
         app.loginSessionFactory = { FakeLogin() }
+        app.publicAccountLoginSessionFactory = { FakeLogin() }
         try {
             ActivityScenario.launch(LoginActivity::class.java).use {
-                compose.onNodeWithText("单手机登录实验").performScrollTo().assertIsDisplayed()
+                compose.onNodeWithText("尝试公众号链接登录").performScrollTo().assertIsDisplayed()
+                compose.onNodeWithText("尝试公众号链接登录").performClick()
+                compose.onNodeWithText("复制链接到微信").performScrollTo().assertIsDisplayed()
+                compose.onNodeWithText("复制链接到微信").performClick()
+                compose.onNodeWithText("复制公众号链接").performClick()
                 main {
-                    val clipboard = app.getSystemService(ClipboardManager::class.java)
-                    val owner = LoginLinkClipboard(clipboard)
-                    owner.copy("https://open.weixin.qq.com/connect/confirm?uuid=synthetic-qr")
+                    assertEquals(
+                        "http://weixin.qq.com/q/synthetic-scene",
+                        clipboard.primaryClip?.getItemAt(0)?.text?.toString(),
+                    )
                     clipboard.setPrimaryClip(ClipData.newPlainText("test", "new user content"))
-                    owner.clear()
-                    assertEquals("new user content", clipboard.primaryClip?.getItemAt(0)?.text?.toString())
-                    clipboard.clearPrimaryClip()
                 }
+                compose.onNodeWithText("获取新二维码").performScrollTo().performClick()
+                main { assertEquals("new user content", clipboard.primaryClip?.getItemAt(0)?.text?.toString()) }
             }
-        } finally { app.loginSessionFactory = previous }
+        } finally {
+            main { clipboard.clearPrimaryClip() }
+            app.publicAccountLoginSessionFactory = previousPublic
+            app.loginSessionFactory = previous
+        }
     }
 
-    private fun withModel(factory: () -> LoginSession, test: (LoginViewModel) -> Unit) {
+    private fun withModel(
+        factory: () -> LoginSession,
+        sceneFactory: (() -> LoginSession)? = null,
+        test: (LoginViewModel) -> Unit,
+    ) {
         val store = ViewModelStore()
         lateinit var model: LoginViewModel
         main {
             model = ViewModelProvider(store, object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
-                override fun <T : ViewModel> create(modelClass: Class<T>): T = LoginViewModel(factory) as T
+                override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                    LoginViewModel(factory, sceneFactory ?: factory) as T
             })[LoginViewModel::class.java]
         }
         try { test(model) } finally { main { store.clear() } }
@@ -221,7 +285,7 @@ class NativeLoginTest {
                 it.toByteArray()
             }
         }
-        override fun confirmationURL(): String = "https://open.weixin.qq.com/connect/confirm?uuid=synthetic-qr"
+        override fun confirmationURL(): String = "http://weixin.qq.com/q/synthetic-scene"
         override suspend fun complete() {
             waiting = true
             if (ignoreCancellation) withContext(NonCancellable) { confirmed.await() } else confirmed.await()

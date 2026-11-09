@@ -31,7 +31,7 @@ type Login struct {
 
 	ctx      context.Context
 	cancel   context.CancelFunc
-	flow     *auth.QRLogin
+	flow     loginFlow
 	code     auth.QRCode
 	interval time.Duration
 
@@ -40,13 +40,33 @@ type Login struct {
 	waitCalled  bool
 }
 
+type loginFlow interface {
+	Start(context.Context) (auth.QRCode, error)
+	Poll(context.Context, auth.QRCode, time.Duration, func(string)) (auth.QRLoginResult, error)
+}
+
 func NewLogin() (*Login, error) {
+	return newOfficialLogin(false)
+}
+
+func NewPublicAccountLogin() (*Login, error) {
+	return newOfficialLogin(true)
+}
+
+func newOfficialLogin(publicAccount bool) (*Login, error) {
 	client, err := ykt.New(ykt.Options{
 		BaseURL: BaseURL,
 		Logger:  slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})
 	if err != nil {
 		return nil, errLoginFailed
+	}
+	if publicAccount {
+		flow, err := auth.NewSceneLogin(BaseURL, client.HTTPClient())
+		if err != nil {
+			return nil, errLoginFailed
+		}
+		return loginWithFlow(flow, loginTTL, loginPollInterval), nil
 	}
 	return newLogin(BaseURL, client.HTTPClient(), loginTTL, loginPollInterval)
 }
@@ -56,13 +76,17 @@ func newLogin(base string, client *http.Client, ttl, interval time.Duration) (*L
 	if err != nil {
 		return nil, errLoginFailed
 	}
+	return loginWithFlow(flow, ttl, interval), nil
+}
+
+func loginWithFlow(flow loginFlow, ttl, interval time.Duration) *Login {
 	ctx, cancel := context.WithTimeout(context.Background(), ttl)
 	return &Login{
 		ctx:      ctx,
 		cancel:   cancel,
 		flow:     flow,
 		interval: interval,
-	}, nil
+	}
 }
 
 func (l *Login) Start() ([]byte, error) {
@@ -131,6 +155,9 @@ func (l *Login) Wait() (string, error) {
 	if err != nil {
 		return "", loginError(l.ctx, err)
 	}
+	if err := l.ctx.Err(); err != nil {
+		return "", loginError(l.ctx, err)
+	}
 	req, err := http.NewRequest(http.MethodGet, BaseURL, nil)
 	if err != nil {
 		return "", errLoginFailed
@@ -160,6 +187,9 @@ func loginError(ctx context.Context, err error) error {
 	}
 	if deadline, ok := ctx.Deadline(); ok && !time.Now().Before(deadline) {
 		return errLoginExpired
+	}
+	if errors.Is(err, auth.ErrLoginSessionMissing) {
+		return auth.ErrLoginSessionMissing
 	}
 	return errLoginFailed
 }

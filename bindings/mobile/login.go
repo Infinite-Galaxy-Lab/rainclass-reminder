@@ -12,6 +12,14 @@ func NewLogin() (*Login, error) {
 	return &Login{core: core}, nil
 }
 
+func NewPublicAccountLogin() (*Login, error) {
+	core, err := application.NewPublicAccountLogin()
+	if err != nil {
+		return nil, err
+	}
+	return &Login{core: core}, nil
+}
+
 func (l *Login) Start() ([]byte, error)           { return l.core.Start() }
 func (l *Login) Await() (string, error)           { return l.core.Wait() }
 func (l *Login) Cancel()                          { l.core.Cancel() }

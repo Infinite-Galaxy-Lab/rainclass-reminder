@@ -28,7 +28,9 @@ class LoginActivity : ComponentActivity() {
         object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                LoginViewModel((application as RainApplication).loginSessionFactory) as T
+                (application as RainApplication).let {
+                    LoginViewModel(it.loginSessionFactory, it.publicAccountLoginSessionFactory) as T
+                }
         }
     }
     private val webLogin = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
@@ -53,6 +55,9 @@ class LoginActivity : ComponentActivity() {
                         loginClipboard.copy(it)
                         Toast.makeText(this, "已复制，请切换微信打开链接", Toast.LENGTH_SHORT).show()
                     }
+                }, onPublicAccount = { enabled ->
+                    loginClipboard.clear()
+                    model.usePublicAccount(enabled)
                 })
             }
         }
