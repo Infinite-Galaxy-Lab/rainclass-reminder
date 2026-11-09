@@ -301,7 +301,15 @@ Go 扫码结果仍经 `Mobile.Authenticate` 校验，再写入 Keystore 密文�
 新增 6 项 Go 协议/取消/超时/错误脱敏回归及 5 项设备回归。
 设备用 `.verification.synthetic`，Home→启动器返回使用真实系统操作，认证结果使用合成会话。
 3 项 Go 与 6 项 Android 实现破坏分别取得断言失败；恢复后 Go、27 项设备与 lint 通过。
-真实微信后台扫码待用户确认，不能用合成测试标记修复完成。方案见 ADR 0002 与 ANDROID。
+用户真实复验仍失败：微信确认成功，返回停留原生登录页，最终显示二维码过期。
+目前只证明本地生命周期与结果交付，尚未证明真实轮询能取得微信确认。继续隔离取证，不能标记修复完成。
+方案见 ADR 0002 与 ANDROID。
+
+alpha.7 APK 来自干净 `0125d92`，SHA-256：
+`b18d3e5f99806206cf81bfc99d4870a29f8466e1b9f0e48ed65b949b46d528a4`。
+完整 AAR 重建、原证书、zipalign 与双 ABI ELF 16 KiB 对齐通过；调试包升级保留加密会话文件，
+发行包覆盖安装成功。上述结果不等于新进程恢复或真实登录有效期验证。
+核心 CI `42587921462` 与 Android CI `42587810463` 均通过（`0125d92`）。
 
 下轮按以下顺序继续：
 
@@ -323,7 +331,7 @@ Java / curl 自动继承；本机构建缓存已配置，不能把个人代理�
 
 ### P4 · 功能增强
 
-- **Windows GUI / Android 发行版** — Android alpha.7 原生扫码待真实验收，alpha.6 补同步编排，alpha.5 优化排序与筛选，alpha.4 物理手机登录跳转已确认；后台待验，Windows Wails 壳尚未做。iOS 后续评估。
+- **Windows GUI / Android 发行版** — Android alpha.7 原生扫码真实后台复验失败，继续定位，alpha.6 补同步编排，alpha.5 优化排序与筛选，alpha.4 物理手机登录跳转已确认；后台待验，Windows Wails 壳尚未做。iOS 后续评估。
 - 自有图标已替换 README 占位图并接入 Android demo，PNG/ICO 见 `docs/BRANDING.md`。Windows 发行包图标与面板接入尚未完成。设计提示词仅在仓库外私有保存。
 
 ### P5 · 低优先级
