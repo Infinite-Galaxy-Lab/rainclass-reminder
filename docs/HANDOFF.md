@@ -266,6 +266,9 @@ alpha.5 发行包 `dist/android/rainclass-reminder-0.1.0-alpha.5.apk`，35,289,9
 release 单元测试 / lint、验签、zipalign 和双 ABI 全部 native ELF 的 16 KiB 对齐通过。
 MuMu 从 alpha.4 发行包覆盖升级并启动通过；调试包另覆盖升级，登录保留且未失效。
 旧版 APK 保留；测试证据和发行材料单独备份，不含运行数据库、登录态或真实页面截图。
+源码提交 `283727d` 的 Android CI `42563634298` 通过 Linux AAR、debug 构建、JVM 回归及 lint。
+12:51 再查：项目成功请求 1116、网页成功请求 206，最近认证成功 12:40:45，无明确认证失效；
+坏行仍为 2，桌面服务 Running，22:15 检查任务 Ready。这仍是关机前预检，不替代晚间报告。
 
 下轮按以下顺序继续：
 

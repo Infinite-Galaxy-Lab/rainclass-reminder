@@ -142,3 +142,4 @@ alpha.5 新增 7 项 JVM 回归，覆盖时间排序、稳定同名记录、24h 
 `15d74ad628718e8d576261d3f5fb45b25a442757fb1e16846c7aa51f2172061f`。
 原证书、versionCode 5，release 单元测试和 lint、验签、zipalign、双 ABI 四个 native 库的
 ELF 16 KiB 对齐通过；MuMu 覆盖升级 alpha.4 发行包启动正常，调试包另升级保留原登录。
+同一源码的 Android CI `42563634298` 通过 Linux AAR、debug APK、JVM 回归与 lint。
