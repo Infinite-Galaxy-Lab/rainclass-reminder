@@ -63,17 +63,17 @@ python tools/observe_report.py "$env:APPDATA\ykt-reminder\runtime\observations"
 首次准备在仓库外虚拟环境安装 Playwright；不需要由 Playwright 下载浏览器，使用本机 Edge：
 
 ```powershell
-python -m venv "$env:LOCALAPPDATA\RainClassReminder\observer-venv"
-& "$env:LOCALAPPDATA\RainClassReminder\observer-venv\Scripts\python.exe" -m pip install playwright
+python -m venv "$env:APPDATA\ykt-reminder\runtime\observer-venv"
+& "$env:APPDATA\ykt-reminder\runtime\observer-venv\Scripts\python.exe" -m pip install playwright
 
 # 使用单独的私有 profile，避免改动日用浏览器；用户在该窗口自行登录。
 $edge = "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe"
-$profile = "$env:LOCALAPPDATA\RainClassReminder\observer-edge-profile"
+$profile = "$env:APPDATA\ykt-reminder\runtime\observer-edge-profile"
 Start-Process -FilePath $edge -WindowStyle Normal -ArgumentList @(
   '--remote-debugging-address=127.0.0.1', '--remote-debugging-port=9222',
   "--user-data-dir=`"$profile`"", 'https://changjiang.yuketang.cn/'
 )
-& "$env:LOCALAPPDATA\RainClassReminder\observer-venv\Scripts\python.exe" `
+& "$env:APPDATA\ykt-reminder\runtime\observer-venv\Scripts\python.exe" `
   tools/observe_browser.py --cdp http://127.0.0.1:9222 `
   --output "$env:APPDATA\ykt-reminder\runtime\observations"
 ```
