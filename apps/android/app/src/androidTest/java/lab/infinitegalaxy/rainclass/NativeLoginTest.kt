@@ -2,12 +2,15 @@ package lab.infinitegalaxy.rainclass
 
 import android.app.Instrumentation.ActivityMonitor
 import android.content.Intent
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.view.WindowManager
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -20,6 +23,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import lab.infinitegalaxy.rainclass.data.LoginSession
+import lab.infinitegalaxy.rainclass.data.LoginLinkClipboard
 import lab.infinitegalaxy.rainclass.ui.LoginViewModel
 import org.junit.Assert.*
 import org.junit.Rule
@@ -141,6 +145,47 @@ class NativeLoginTest {
         } finally { session.confirmed.complete(Unit) }
     }
 
+    @Test fun confirmationLinkCopiesOnlyOnRequestAndClearsOnRetry() {
+        val previous = app.loginSessionFactory
+        val clipboard = app.getSystemService(ClipboardManager::class.java)
+        app.loginSessionFactory = { FakeLogin() }
+        try {
+            ActivityScenario.launch(LoginActivity::class.java).use {
+                compose.onNodeWithText("单手机登录实验").performScrollTo().assertIsDisplayed()
+                main { clipboard.setPrimaryClip(ClipData.newPlainText("test", "unrelated")) }
+                compose.onNodeWithText("单手机登录实验").performClick()
+                main { assertEquals("unrelated", clipboard.primaryClip?.getItemAt(0)?.text?.toString()) }
+                compose.onNodeWithText("复制确认链接").performClick()
+                main {
+                    val clip = requireNotNull(clipboard.primaryClip)
+                    assertEquals("https://open.weixin.qq.com/connect/confirm?uuid=synthetic-qr", clip.getItemAt(0).text.toString())
+                    assertTrue(clip.description.extras?.getBoolean("android.content.extra.IS_SENSITIVE") == true)
+                }
+                compose.onNodeWithText("获取新二维码").performScrollTo().performClick()
+                main { assertTrue(clipboard.primaryClip?.getItemAt(0)?.text.isNullOrEmpty()) }
+            }
+        } finally { app.loginSessionFactory = previous }
+    }
+
+    @Test fun confirmationLinkCleanupPreservesNewUserContent() {
+        val previous = app.loginSessionFactory
+        app.loginSessionFactory = { FakeLogin() }
+        try {
+            ActivityScenario.launch(LoginActivity::class.java).use {
+                compose.onNodeWithText("单手机登录实验").performScrollTo().assertIsDisplayed()
+                main {
+                    val clipboard = app.getSystemService(ClipboardManager::class.java)
+                    val owner = LoginLinkClipboard(clipboard)
+                    owner.copy("https://open.weixin.qq.com/connect/confirm?uuid=synthetic-qr")
+                    clipboard.setPrimaryClip(ClipData.newPlainText("test", "new user content"))
+                    owner.clear()
+                    assertEquals("new user content", clipboard.primaryClip?.getItemAt(0)?.text?.toString())
+                    clipboard.clearPrimaryClip()
+                }
+            }
+        } finally { app.loginSessionFactory = previous }
+    }
+
     private fun withModel(factory: () -> LoginSession, test: (LoginViewModel) -> Unit) {
         val store = ViewModelStore()
         lateinit var model: LoginViewModel
@@ -176,6 +221,7 @@ class NativeLoginTest {
                 it.toByteArray()
             }
         }
+        override fun confirmationURL(): String = "https://open.weixin.qq.com/connect/confirm?uuid=synthetic-qr"
         override suspend fun complete() {
             waiting = true
             if (ignoreCancellation) withContext(NonCancellable) { confirmed.await() } else confirmed.await()

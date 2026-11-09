@@ -233,6 +233,9 @@ Android 默认扫码由 `application.Login` 封装已有的 `auth.QRLogin`，独
 原官方 WebView 登录保留为备用入口，其 Cookie 检查、域名限制和截图支持继续适用。
 方案依据与边界见 [ADR 0002](adr/0002-android-native-qr-login.md)。
 认证成功通过 Activity Result 通知首页，先显示缓存，再立即同步课程；普通启动仅恢复本地快照。
+alpha.8 只在调试/验证包提供当前二维码的官方确认链接：URL 由 auth 构造，application
+负责会话生命周期校验，绑定薄委托；Android 只处理用户主动复制与敏感剪贴板清理。
+没有把微信协议复制到界面或接入第三方二维码转发服务，是否能在微信内点开须真机验证。
 
 移动引擎独立持有设备时区，刷新前由 Android 更新；tzdata 仅随绑定模块打包，不改变桌面全局时区。
 Worker 先创建带取消上下文的刷新对象，再登记执行，取消按请求传递到抓取层，覆盖执行前停止的竞争。

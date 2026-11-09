@@ -93,6 +93,19 @@ func (l *Login) Start() ([]byte, error) {
 	return code.PNG, nil
 }
 
+func (l *Login) ConfirmationURL() (string, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if err := l.ctx.Err(); err != nil {
+		return "", loginError(l.ctx, err)
+	}
+	if !l.startReady || l.code.UUID == "" {
+		return "", errLoginState
+	}
+	return l.code.ConfirmationURL(), nil
+}
+
 func (l *Login) Wait() (string, error) {
 	l.mu.Lock()
 	if l.waitCalled {

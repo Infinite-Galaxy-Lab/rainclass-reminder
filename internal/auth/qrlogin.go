@@ -41,6 +41,13 @@ type QRCode struct {
 	ExpiresAt time.Time
 }
 
+func (q QRCode) ConfirmationURL() string {
+	if q.UUID == "" {
+		return ""
+	}
+	return "https://open.weixin.qq.com/connect/confirm?" + url.Values{"uuid": {q.UUID}}.Encode()
+}
+
 // QRLoginResult 是扫码成功后的结果。
 type QRLoginResult struct {
 	Cookie       Cookie

@@ -9,9 +9,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import lab.infinitegalaxy.rainclass.data.LoginSession
+import lab.infinitegalaxy.rainclass.BuildConfig
 
 internal data class LoginState(
     val image: ByteArray? = null,
+    val confirmationLink: String? = null,
     val loading: Boolean = true,
     val complete: Boolean = false,
     val error: String? = null,
@@ -33,7 +35,8 @@ internal class LoginViewModel(private val createSession: () -> LoginSession) : V
                 active = session
                 val image = session.start()
                 ensureActive()
-                mutable.value = LoginState(image = image, loading = false)
+                val link = if (BuildConfig.DEBUG) session.confirmationURL() else null
+                mutable.value = LoginState(image = image, confirmationLink = link, loading = false)
                 session.complete()
                 ensureActive()
                 mutable.value = LoginState(loading = false, complete = true)

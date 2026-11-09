@@ -8,6 +8,7 @@ import mobile.Mobile
 
 internal interface LoginSession {
     suspend fun start(): ByteArray
+    fun confirmationURL(): String
     suspend fun complete()
     fun cancel()
 }
@@ -16,6 +17,8 @@ internal class NativeLoginSession(private val repository: RainRepository) : Logi
     private val login = Mobile.newLogin()
 
     override suspend fun start(): ByteArray = withContext(Dispatchers.IO) { login.start() }
+
+    override fun confirmationURL(): String = login.confirmationURL()
 
     override suspend fun complete() = withContext(Dispatchers.IO) {
         val cookie = login.await()

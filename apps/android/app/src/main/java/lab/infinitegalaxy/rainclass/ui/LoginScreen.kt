@@ -10,16 +10,28 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import lab.infinitegalaxy.rainclass.BuildConfig
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun LoginScreen(state: LoginState, onBack: () -> Unit, onRetry: () -> Unit, onWeb: () -> Unit) {
+internal fun LoginScreen(state: LoginState, onBack: () -> Unit, onRetry: () -> Unit, onWeb: () -> Unit,
+                         onCopyLink: () -> Unit = {}) {
+    var showLinkHelp by remember { mutableStateOf(false) }
+    if (showLinkHelp && state.confirmationLink != null && BuildConfig.DEBUG) {
+        AlertDialog(onDismissRequest = { showLinkHelp = false }, title = { Text("单手机登录实验") },
+            text = { Text("复制后，在微信「文件传输助手」粘贴链接，发送给自己并点开。若出现登录确认，确认后返回本应用。\n\n若仍要求摄像头扫码，说明此方法不可用。链接仅供本次登录，请勿发给他人。") },
+            confirmButton = { TextButton(onClick = { showLinkHelp = false; onCopyLink() }) { Text("复制确认链接") } },
+            dismissButton = { TextButton(onClick = { showLinkHelp = false }) { Text("取消") } })
+    }
     Scaffold(topBar = {
         TopAppBar(title = { Text("连接雨课堂") }, navigationIcon = {
             TextButton(onClick = onBack) { Text("返回") }
@@ -30,7 +42,7 @@ internal fun LoginScreen(state: LoginState, onBack: () -> Unit, onRetry: () -> U
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(20.dp)) {
             Text("微信扫码登录", style = MaterialTheme.typography.headlineSmall)
-            Text("截图后，在微信「扫一扫 → 相册」识别。\n确认后返回应用，将自动连接你的课堂。",
+            Text("请用微信扫描二维码。确认后返回应用，将自动连接你的课堂。\n微信可能禁止从相册识别登录码。",
                 color = Muted, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium)
             val bitmap = remember(state.image) {
                 state.image?.let { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }
@@ -44,6 +56,9 @@ internal fun LoginScreen(state: LoginState, onBack: () -> Unit, onRetry: () -> U
                 }
             }
             if (state.image != null) Text("等待微信确认…", color = Muted)
+            if (BuildConfig.DEBUG && state.confirmationLink != null) {
+                OutlinedButton(onClick = { showLinkHelp = true }) { Text("单手机登录实验") }
+            }
             OutlinedButton(onClick = onRetry, enabled = !state.loading) { Text("获取新二维码") }
             TextButton(onClick = onWeb) { Text("使用官方网页登录") }
         }
