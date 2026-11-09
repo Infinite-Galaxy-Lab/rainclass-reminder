@@ -92,8 +92,8 @@ foreach ($file in @('settings.gradle.kts', 'build.gradle.kts', 'gradle.propertie
 Push-Location $androidStage
 try {
     $wrapper = if ($IsWindows -or $env:OS -eq 'Windows_NT') { Join-Path $androidStage 'gradlew.bat' } else { Join-Path $androidStage 'gradlew' }
-    $tasks = @('--no-daemon', "assemble$Variant", "lint$Variant")
-    if ($Test) { $tasks += 'connectedDebugAndroidTest' }
+    $tasks = @('--no-daemon', "assemble$Variant", "lint$Variant", "test${Variant}UnitTest")
+    if ($Test) { $tasks += 'connectedVerificationAndroidTest' }
     Invoke-Checked $wrapper $tasks
     $output = Join-Path $repository 'dist/android'
     New-Item -ItemType Directory -Path $output -Force | Out-Null

@@ -14,11 +14,11 @@ android {
         applicationId = "lab.infinitegalaxy.rainclass"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.1.0-alpha.4"
+        versionCode = 5
+        versionName = "0.1.0-alpha.5"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         testInstrumentationRunnerArguments["additionalTestOutputDir"] =
-            "/sdcard/Android/media/lab.infinitegalaxy.rainclass.debug/verification"
+            "/sdcard/Android/media/lab.infinitegalaxy.rainclass.verification/verification"
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }
     buildFeatures { compose = true; buildConfig = true }
@@ -39,11 +39,17 @@ android {
     }
     buildTypes {
         debug { applicationIdSuffix = ".debug"; versionNameSuffix = "-debug" }
+        create("verification") {
+            initWith(getByName("debug"))
+            applicationIdSuffix = ".verification"
+            matchingFallbacks += "debug"
+        }
         release {
             isMinifyEnabled = false
             if (signingPath.isPresent) { signingConfig = signingConfigs.getByName("distribution") }
         }
     }
+    testBuildType = "verification"
     packaging { jniLibs { useLegacyPackaging = false } }
 }
 
@@ -66,4 +72,5 @@ dependencies {
     androidTestImplementation("androidx.work:work-testing:2.10.0")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+    add("verificationImplementation", "androidx.compose.ui:ui-test-manifest")
 }
