@@ -154,8 +154,9 @@ Android 本轮已按此方向生成 demo，进度与限制见下；Windows GUI �
 
 交付包 `dist/android/rainclass-reminder-0.1.0-alpha.2.apk`（35,270,675 字节）已通过签名与
 16 KiB zipalign 检查，并在 MuMu Android 15 从 alpha.1 覆盖升级、启动成功。SHA-256：
-`bb6502590f7d8ac6213d8dc8277277800b61f0bb61d1ee6d6989dc4171044204`。
+`88eb61a4ca2702c2d7c52fa56062435d545dbf2ab697face20859e26791e7621`。
 alpha.1 仍单独保留在忽略目录。源码与 CI 对应本分支提交，不沿用 main 的旧 CI 结果。
+该 APK 由干净提交 `194318b` 重新生成 AAR 后构建，构建信息保存在忽略目录。
 
 已验证：arm64-v8a / x86_64 AAR、Go 核心与 SQLite 在 Android 编译运行、Keystore 密文与重置、
 SQLite 重开和 nullable 成绩、唯一周期 Worker / 取消、通知拒绝和关闭渠道、320dp 界面与设置。

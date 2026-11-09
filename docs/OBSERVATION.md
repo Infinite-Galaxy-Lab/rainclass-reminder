@@ -62,6 +62,8 @@ python tools/observe_report.py "$env:APPDATA\ykt-reminder\runtime\observations"
 
 首次准备在仓库外虚拟环境安装 Playwright；不需要由 Playwright 下载浏览器，使用本机 Edge：
 
+本机上述 runtime 内已准备好虚拟环境及 Playwright；官方窗口尚需用户手动打开并登录。
+
 ```powershell
 python -m venv "$env:APPDATA\ykt-reminder\runtime\observer-venv"
 & "$env:APPDATA\ykt-reminder\runtime\observer-venv\Scripts\python.exe" -m pip install playwright
