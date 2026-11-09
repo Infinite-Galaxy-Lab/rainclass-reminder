@@ -21,6 +21,9 @@ import lab.infinitegalaxy.rainclass.ui.RainViewModel
 class MainActivity : ComponentActivity() {
     private val model: RainViewModel by viewModels()
     private var notificationsAllowed by mutableStateOf(false)
+    private val login = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        if (it.resultCode == RESULT_OK) model.loginSucceeded()
+    }
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
         notificationsAllowed = NotificationManagerCompat.from(this).areNotificationsEnabled()
     }
@@ -32,7 +35,7 @@ class MainActivity : ComponentActivity() {
             val state by model.state.collectAsStateWithLifecycle()
             RainTheme {
                 RainScreen(state, notificationsAllowed,
-                    onLogin = { startActivity(Intent(this, LoginActivity::class.java)) },
+                    onLogin = { login.launch(Intent(this, LoginActivity::class.java)) },
                     onRefresh = model::refresh, onSignOut = model::signOut,
                     onBackground = model::background,
                     onNotificationPermission = {

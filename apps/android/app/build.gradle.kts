@@ -14,8 +14,8 @@ android {
         applicationId = "lab.infinitegalaxy.rainclass"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.1.0-alpha.5"
+        versionCode = 6
+        versionName = "0.1.0-alpha.6"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         testInstrumentationRunnerArguments["additionalTestOutputDir"] =
             "/sdcard/Android/media/lab.infinitegalaxy.rainclass.verification/verification"

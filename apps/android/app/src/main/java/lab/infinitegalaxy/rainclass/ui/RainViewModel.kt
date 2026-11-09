@@ -6,8 +6,12 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import lab.infinitegalaxy.rainclass.RainApplication
 import lab.infinitegalaxy.rainclass.data.Snapshot
+import lab.infinitegalaxy.rainclass.data.ScreenDataSource
 import lab.infinitegalaxy.rainclass.reminders.RefreshWorker
 
 data class ScreenState(
@@ -17,35 +21,53 @@ data class ScreenState(
     val background: Boolean = true,
 )
 
-class RainViewModel(application: Application) : AndroidViewModel(application) {
+class RainViewModel @JvmOverloads constructor(
+    application: Application,
+    private val source: ScreenDataSource = (application as RainApplication).repository,
+) : AndroidViewModel(application) {
     private val app = application as RainApplication
     private val preferences = app.getSharedPreferences("settings", 0)
     private val mutable = MutableStateFlow(ScreenState(background = preferences.getBoolean("background", true)))
     val state = mutable.asStateFlow()
+    private var loading: Job? = null
 
     fun load() {
         if (mutable.value.busy) return
-        viewModelScope.launch {
-            runCatching { app.repository.snapshot() }
+        loading?.cancel()
+        loading = viewModelScope.launch {
+            runCatching { source.snapshot() }
                 .onSuccess {
+                    ensureActive()
+                    if (mutable.value.busy) return@onSuccess
                     mutable.value = mutable.value.copy(snapshot = it)
                     if (it.authState != "signed_out" && mutable.value.background) RefreshWorker.schedule(app)
                 }
-                .onFailure { mutable.value = mutable.value.copy(message = readableError(it)) }
+                .onFailure {
+                    if (it is CancellationException) throw it
+                    mutable.value = mutable.value.copy(message = readableError(it))
+                }
         }
     }
 
-    fun refresh() {
+    fun loginSucceeded() = refresh(loadCache = true)
+
+    fun refresh() = refresh(loadCache = false)
+
+    private fun refresh(loadCache: Boolean) {
         if (mutable.value.busy) return
+        loading?.cancel()
         mutable.value = mutable.value.copy(busy = true, message = null)
         viewModelScope.launch {
             try {
-                mutable.value = mutable.value.copy(snapshot = app.repository.refresh())
+                if (loadCache) mutable.value = mutable.value.copy(snapshot = source.snapshot())
+                mutable.value = mutable.value.copy(snapshot = source.refresh())
             } catch (error: Exception) {
-                val cached = runCatching { app.repository.snapshot() }.getOrDefault(mutable.value.snapshot)
+                if (error is CancellationException) throw error
+                val cached = runCatching { source.snapshot() }.getOrDefault(mutable.value.snapshot)
                 mutable.value = mutable.value.copy(snapshot = cached, message = readableError(error))
             } finally {
                 mutable.value = mutable.value.copy(busy = false)
+                if (mutable.value.background && mutable.value.snapshot.authState != "signed_out") RefreshWorker.schedule(app)
             }
         }
     }
@@ -58,19 +80,20 @@ class RainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun signOut() {
+        if (mutable.value.busy) return
+        loading?.cancel()
+        mutable.value = mutable.value.copy(busy = true)
         viewModelScope.launch {
-            mutable.value = mutable.value.copy(busy = true)
-            runCatching { app.repository.signOut() }
-                .onSuccess {
-                    RefreshWorker.cancel(app)
-                    mutable.value = mutable.value.copy(snapshot = Snapshot(), message = null)
-                }
-                .onFailure {
-                    val cached = runCatching { app.repository.snapshot() }.getOrDefault(mutable.value.snapshot)
-                    if (cached.authState == "signed_out") RefreshWorker.cancel(app)
-                    mutable.value = mutable.value.copy(snapshot = cached, message = readableError(it))
-                }
-            mutable.value = mutable.value.copy(busy = false)
+            try {
+                source.signOut()
+                RefreshWorker.cancel(app)
+                mutable.value = mutable.value.copy(snapshot = Snapshot(), message = null)
+            } catch (error: Exception) {
+                if (error is CancellationException) throw error
+                val cached = runCatching { source.snapshot() }.getOrDefault(mutable.value.snapshot)
+                if (cached.authState == "signed_out") RefreshWorker.cancel(app)
+                mutable.value = mutable.value.copy(snapshot = cached, message = readableError(error))
+            } finally { mutable.value = mutable.value.copy(busy = false) }
         }
     }
 }

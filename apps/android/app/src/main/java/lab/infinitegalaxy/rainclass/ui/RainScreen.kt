@@ -98,7 +98,13 @@ fun RainScreen(
                         TaskControls(presentation, filter, query, course, order,
                             { filter = it }, { query = it }, { course = it }, { order = it })
                     }
-                    if (state.busy) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+                    if (state.busy) item {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            LinearProgressIndicator(Modifier.fillMaxWidth())
+                            Text("正在同步课程与任务。首次同步可能需要几分钟，已有任务仍可查看。",
+                                fontSize = 12.sp, color = Muted)
+                        }
+                    }
                 }
                 state.message?.let { message ->
                     item {

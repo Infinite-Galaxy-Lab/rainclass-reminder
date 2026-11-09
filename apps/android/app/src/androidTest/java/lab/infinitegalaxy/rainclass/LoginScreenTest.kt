@@ -4,9 +4,11 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.webkit.WebView
+import android.webkit.CookieManager
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.lifecycle.Lifecycle
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -17,6 +19,42 @@ import java.util.concurrent.atomic.AtomicReference
 
 @RunWith(AndroidJUnit4::class)
 class LoginScreenTest {
+    @Test fun recreationKeepsWebSessionAndBackgroundReturnKeepsPage() {
+        ActivityScenario.launch(LoginActivity::class.java).use { scenario ->
+            var web: WebView? = null
+            var navigationStarted = false
+            val until = System.currentTimeMillis() + 5000
+            while (!navigationStarted && System.currentTimeMillis() < until) {
+                scenario.onActivity {
+                    web = findWebView(it.window.decorView)
+                    web?.settings?.blockNetworkLoads = true
+                    navigationStarted = web?.url != null
+                }
+                Thread.sleep(25)
+            }
+            assertTrue(navigationStarted)
+            val written = CountDownLatch(1)
+            scenario.onActivity {
+                CookieManager.getInstance().setCookie(LoginActivity.BASE,
+                    "lifecycle_probe=synthetic-only; Path=/; Secure") { written.countDown() }
+            }
+            assertTrue(written.await(2, TimeUnit.SECONDS))
+            scenario.moveToState(Lifecycle.State.CREATED)
+            scenario.moveToState(Lifecycle.State.RESUMED)
+            scenario.onActivity {
+                assertSame("background return replaced the active QR page", web, findWebView(it.window.decorView))
+                assertTrue(CookieManager.getInstance().getCookie(LoginActivity.BASE).orEmpty().contains("lifecycle_probe=synthetic-only"))
+            }
+            scenario.recreate()
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+            scenario.onActivity {
+                findWebView(it.window.decorView)?.settings?.blockNetworkLoads = true
+                assertTrue("Activity recreation erased the scan result",
+                    CookieManager.getInstance().getCookie(LoginActivity.BASE).orEmpty().contains("lifecycle_probe=synthetic-only"))
+            }
+        }
+    }
+
     @Test fun loginAllowsScreenshotsForWechatAlbum() {
         ActivityScenario.launch(LoginActivity::class.java).use { scenario ->
             scenario.onActivity {
